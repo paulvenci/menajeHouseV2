@@ -1,15 +1,16 @@
 import { defineStore } from 'pinia'
-import { collection, addDoc, getDocs, doc, orderBy, query, where, deleteDoc, updateDoc } from 'firebase/firestore'
-import { db } from '../firebase'
+import { supabase } from '../supabase'
 
 interface Venta {
     id?: string
     codigo: string
     monto: number
-    cliente?: string
+    cliente_id?: string // Renombrado a cliente_id para coincidir con SQL
+    cliente?: string // Mantener compatibilidad temporal para el frontend si se usaba
     tipo?: string
     fecha?: string
-    modoPago?: string
+    modo_pago?: string // Renombrado a modo_pago para coincidir con SQL
+    modoPago?: string // Mantener compatibilidad temporal
 }
 
 export const useVentasStore = defineStore('ventas', {
@@ -18,28 +19,95 @@ export const useVentasStore = defineStore('ventas', {
     }),
     actions: {
         async cargarVentas() {
-            const snapshot = await getDocs(collection(db, 'ventas'))
-            this.ventas = snapshot.docs.map((docSnap) => ({
-                id: docSnap.id,
-                ...docSnap.data()
+            const { data, error } = await supabase.from('ventas').select('*')
+            if (error) {
+                console.error("Error al cargar ventas:", error)
+                return
+            }
+            this.ventas = data.map(v => ({
+                id: v.id,
+                codigo: v.codigo,
+                monto: v.monto,
+                cliente_id: v.cliente_id,
+                tipo: v.tipo,
+                fecha: v.fecha,
+                modo_pago: v.modo_pago,
+                // Mapear a variables camelCase para retrocompatibilidad en componentes
+                cliente: v.cliente_id, 
+                modoPago: v.modo_pago 
             })) as Venta[]
         },
 
         async agregarVenta(venta: Venta) {
-            const docRef = await addDoc(collection(db, 'ventas'), venta)
-            this.ventas.unshift({ ...venta, id: docRef.id })
+            // Preparar datos para BD (snake_case)
+            const ventaToInsert = {
+                codigo: venta.codigo,
+                monto: venta.monto,
+                cliente_id: venta.cliente_id || venta.cliente,
+                tipo: venta.tipo,
+                fecha: venta.fecha || new Date().toISOString(),
+                modo_pago: venta.modoPago || venta.modo_pago
+            }
+
+            const { data, error } = await supabase
+                .from('ventas')
+                .insert([ventaToInsert])
+                .select()
+                
+            if (error) {
+                console.error("Error al agregar venta:", error)
+                throw error
+            }
+            
+            if (data && data.length > 0) {
+                const newVenta = {
+                    ...data[0],
+                    cliente: data[0].cliente_id,
+                    modoPago: data[0].modo_pago
+                }
+                this.ventas.unshift(newVenta)
+            }
         },
 
         async eliminarVenta(id: string) {
-            await deleteDoc(doc(db, 'ventas', id))
+            const { error } = await supabase
+                .from('ventas')
+                .delete()
+                .eq('id', id)
+                
+            if (error) {
+                console.error("Error al eliminar venta:", error)
+                throw error
+            }
+            
             this.ventas = this.ventas.filter((v) => v.id !== id)
         },
 
-        async actualizarVenta(id: string, data: Partial<Venta>) {
-            await updateDoc(doc(db, 'ventas', id), data)
+        async actualizarVenta(id: string, updateData: Partial<Venta>) {
+            // Mapeo seguro a snake_case para la base de datos
+            const dataToUpdate: any = { ...updateData }
+            if (dataToUpdate.cliente) {
+                dataToUpdate.cliente_id = dataToUpdate.cliente
+                delete dataToUpdate.cliente
+            }
+            if (dataToUpdate.modoPago) {
+                dataToUpdate.modo_pago = dataToUpdate.modoPago
+                delete dataToUpdate.modoPago
+            }
+
+            const { error } = await supabase
+                .from('ventas')
+                .update(dataToUpdate)
+                .eq('id', id)
+                
+            if (error) {
+                console.error("Error al actualizar venta:", error)
+                throw error
+            }
+
             const index = this.ventas.findIndex((v) => v.id === id)
             if (index !== -1) {
-                this.ventas[index] = { ...this.ventas[index], ...data }
+                this.ventas[index] = { ...this.ventas[index], ...updateData }
             }
         },
 
@@ -49,21 +117,20 @@ export const useVentasStore = defineStore('ventas', {
                 const primerDiaAnio = new Date(hoy.getFullYear(), 0, 1);
                 const ultimoDiaAnio = new Date(hoy.getFullYear(), 11, 31);
 
-                const ventasQuery = query(
-                    collection(db, 'ventas'),
-                    where('fecha', '>=', primerDiaAnio.toISOString()),
-                    where('fecha', '<=', ultimoDiaAnio.toISOString())
-                );
+                const { data, error } = await supabase
+                    .from('ventas')
+                    .select('monto, fecha')
+                    .gte('fecha', primerDiaAnio.toISOString())
+                    .lte('fecha', ultimoDiaAnio.toISOString())
 
-                const snapshot = await getDocs(ventasQuery);
+                if (error) throw error
+
                 const ventasPorMes: { [key: number]: number } = {};
 
-                snapshot.docs.forEach(doc => {
-                    const data = doc.data();
-                    const fecha = new Date(data.fecha);
+                data.forEach((venta: any) => {
+                    const fecha = new Date(venta.fecha);
                     const mes = fecha.getMonth(); // 0 = Enero, 1 = Febrero, etc.
-
-                    ventasPorMes[mes] = (ventasPorMes[mes] || 0) + data.monto;
+                    ventasPorMes[mes] = (ventasPorMes[mes] || 0) + Number(venta.monto);
                 });
 
                 return ventasPorMes; // Retorna los datos agregados
@@ -72,21 +139,28 @@ export const useVentasStore = defineStore('ventas', {
                 return {};
             }
         },
+        
         // Acción para cargar ventas del día actual (ideal para Ventas.vue)
         async cargarVentasDelDia() {
             const hoy = new Date();
             const inicioDelDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).toISOString();
 
-            const q = query(
-                collection(db, 'ventas'),
-                where('fecha', '>=', inicioDelDia),
-                orderBy('fecha', 'desc') // Opcional, pero recomendado para mostrar las más recientes arriba
-            );
+            const { data, error } = await supabase
+                .from('ventas')
+                .select('*')
+                .gte('fecha', inicioDelDia)
+                .order('fecha', { ascending: false })
 
-            const snapshot = await getDocs(q);
-            this.ventas = snapshot.docs.map((docSnap) => ({
-                id: docSnap.id,
-                ...docSnap.data()
+            if (error) {
+                console.error("Error cargando ventas del día:", error)
+                return
+            }
+
+            this.ventas = data.map((v: any) => ({
+                id: v.id,
+                ...v,
+                cliente: v.cliente_id,
+                modoPago: v.modo_pago
             })) as Venta[];
         },
 
@@ -95,24 +169,21 @@ export const useVentasStore = defineStore('ventas', {
             try {
                 console.log('🔄 VentasStore: Iniciando carga de todas las ventas...');
 
-                const q = query(
-                    collection(db, 'ventas'),
-                    orderBy('fecha', 'desc')
-                );
+                const { data, error } = await supabase
+                    .from('ventas')
+                    .select('*')
+                    .order('fecha', { ascending: false })
 
-                console.log('🔄 VentasStore: Ejecutando consulta a Firestore...');
-                const snapshot = await getDocs(q);
+                if (error) throw error
 
-                console.log('📊 VentasStore: Documentos obtenidos:', snapshot.size);
+                console.log('📊 VentasStore: Documentos obtenidos:', data.length);
 
-                this.ventas = snapshot.docs.map((docSnap) => {
-                    const data = docSnap.data();
-                    console.log('📄 Documento:', docSnap.id, data);
-                    return {
-                        id: docSnap.id,
-                        ...data
-                    };
-                }) as Venta[];
+                this.ventas = data.map((v: any) => ({
+                    id: v.id,
+                    ...v,
+                    cliente: v.cliente_id,
+                    modoPago: v.modo_pago
+                })) as Venta[];
 
                 console.log('✅ VentasStore: Ventas cargadas exitosamente:', this.ventas.length);
 

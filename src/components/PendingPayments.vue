@@ -177,8 +177,7 @@
 <script setup
     lang="ts">
     import { ref, onMounted } from 'vue';
-    import { collection, getDocs, doc, updateDoc, query, where } from 'firebase/firestore';
-    import { db } from '../firebase';
+    import { supabase } from '../supabase';
 
     interface Venta {
         id: string;
@@ -230,15 +229,20 @@
     async function cargarVentasPendientes() {
         loading.value = true;
         try {
-            const ventasRef = collection(db, 'ventas');
-            const q = query(ventasRef, where('estadoPago', '==', 'pendiente'));
-            const querySnapshot = await getDocs(q);
+            const { data, error } = await supabase.from('ventas').select('*, clientes(nombre)').eq('estado_pago', 'pendiente');
+            if (error) throw error;
 
             ventasPendientes.value = [];
-            querySnapshot.forEach((doc) => {
+            data.forEach((v: any) => {
                 ventasPendientes.value.push({
-                    id: doc.id,
-                    ...doc.data()
+                    id: v.id,
+                    codigo: v.codigo,
+                    monto: v.monto,
+                    cliente: v.clientes?.nombre || v.cliente_id || 'Cliente desconocido',
+                    tipo: v.tipo,
+                    fecha: v.fecha,
+                    estadoPago: v.estado_pago,
+                    modoPago: v.modo_pago
                 } as Venta);
             });
 
@@ -274,13 +278,13 @@
 
         guardandoPago.value = true;
         try {
-            const ventaRef = doc(db, 'ventas', ventaSeleccionada.value.id);
-            await updateDoc(ventaRef, {
-                estadoPago: 'pagado',
-                modoPago: pagoData.value.modoPago,
-                fechaPago: pagoData.value.fechaPago,
-                usuarioPago: pagoData.value.usuario || 'No especificado'
-            });
+            const { error } = await supabase.from('ventas').update({
+                estado_pago: 'pagado',
+                modo_pago: pagoData.value.modoPago,
+                fecha_pago: pagoData.value.fechaPago,
+                usuario_pago: pagoData.value.usuario || 'No especificado'
+            }).eq('id', ventaSeleccionada.value.id);
+            if (error) throw error;
 
             mostrarNotificacion('✅ Pago registrado correctamente', 'success');
             cerrarDialogoPago();
@@ -299,8 +303,8 @@
         snackbar.value = true;
     }
 
-    function formatoMoneda(valor: number | null) {
-        if (valor === null) return '$0';
+    function formatoMoneda(valor: number | null | undefined) {
+        if (valor == null) return '$0';
         return new Intl.NumberFormat('es-CL', {
             style: 'currency',
             currency: 'CLP',
@@ -345,13 +349,13 @@
 
             for (const ventaId of seleccionados.value) {
                 try {
-                    const ventaRef = doc(db, 'ventas', ventaId);
-                    await updateDoc(ventaRef, {
-                        estadoPago: 'pagado',
-                        modoPago: pagoData.value.modoPago,
-                        fechaPago: pagoData.value.fechaPago,
-                        usuarioPago: pagoData.value.usuario || 'No especificado'
-                    });
+                    const { error } = await supabase.from('ventas').update({
+                        estado_pago: 'pagado',
+                        modo_pago: pagoData.value.modoPago,
+                        fecha_pago: pagoData.value.fechaPago,
+                        usuario_pago: pagoData.value.usuario || 'No especificado'
+                    }).eq('id', ventaId);
+                    if (error) throw error;
                     exitosos++;
                 } catch (error) {
                     console.error(`Error registrando pago para venta ${ventaId}:`, error);

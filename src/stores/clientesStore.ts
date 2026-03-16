@@ -1,38 +1,72 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { db } from '../firebase'
-import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore'
+import { supabase } from '../supabase'
 
 export const useClientesStore = defineStore('clientes', () => {
     const clientes = ref<{ id: string, nombre: string, email: string, telefono: string }[]>([])
 
-    // Cargar clientes desde Firestore
+    // Cargar clientes desde Supabase
     async function cargarClientes() {
         clientes.value = []
-        const snapshot = await getDocs(collection(db, 'clientes'))
-        snapshot.forEach((docItem) => {
-            clientes.value.push({ id: docItem.id, nombre: docItem.data().nombre, email: docItem.data().email, telefono: docItem.data().telefono })
-        })
+        const { data, error } = await supabase.from('clientes').select('*')
+        
+        if (error) {
+            console.error('Error al cargar clientes:', error)
+            return
+        }
+        
+        if (data) {
+            clientes.value = data
+        }
     }
 
-    // Agregar cliente a Firestore
+    // Agregar cliente a Supabase
     async function agregarCliente(nombre: string, email: string, telefono: string) {
-        const docRef = await addDoc(collection(db, 'clientes'), { nombre, email, telefono })
-        clientes.value.push({ id: docRef.id, nombre, email, telefono })
+        const { data, error } = await supabase
+            .from('clientes')
+            .insert([{ nombre, email, telefono }])
+            .select()
+            
+        if (error) {
+            console.error('Error al agregar cliente:', error)
+            throw error
+        }
+        
+        if (data && data.length > 0) {
+            clientes.value.push(data[0])
+        }
     }
 
     // Actualizar cliente
     async function actualizarCliente(id: string, nombre: string, email: string, telefono: string) {
-        await updateDoc(doc(db, 'clientes', id), { nombre, email, telefono })
+        const { error } = await supabase
+            .from('clientes')
+            .update({ nombre, email, telefono })
+            .eq('id', id)
+            
+        if (error) {
+            console.error('Error al actualizar cliente:', error)
+            throw error
+        }
+        
         const index = clientes.value.findIndex(c => c.id === id)
         if (index !== -1) {
-            clientes.value[index] = { id, nombre, email, telefono }
+            clientes.value[index] = { ...clientes.value[index], nombre, email, telefono }
         }
     }
 
     // Eliminar cliente
     async function eliminarCliente(id: string) {
-        await deleteDoc(doc(db, 'clientes', id))
+        const { error } = await supabase
+            .from('clientes')
+            .delete()
+            .eq('id', id)
+            
+        if (error) {
+            console.error('Error al eliminar cliente:', error)
+            throw error
+        }
+        
         clientes.value = clientes.value.filter(c => c.id !== id)
     }
 

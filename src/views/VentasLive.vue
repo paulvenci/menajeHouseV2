@@ -8,10 +8,6 @@
                             @click="dialogFiltro = true" class="text-none mr-2" size="default">
                             Cargar
                         </v-btn>
-                        <v-btn color="success" variant="elevated" prepend-icon="mdi-content-save" @click="guardarVentas"
-                            class="text-none mr-2" size="default" :disabled="ventasAgregadas.length === 0">
-                            Guardar
-                        </v-btn>
                         <v-btn color="warning" variant="elevated" prepend-icon="mdi-delete-sweep" @click="limpiarVentas"
                             class="text-none mr-2" size="default" :disabled="ventasAgregadas.length === 0">
                             Limpiar
@@ -67,11 +63,6 @@
                                 @click="dialogFiltro = true" class="text-none flex-1" size="small">
                                 Cargar
                             </v-btn>
-                            <v-btn color="success" variant="elevated" prepend-icon="mdi-content-save"
-                                @click="guardarVentas" class="text-none flex-1" size="small"
-                                :disabled="ventasAgregadas.length === 0">
-                                Guardar
-                            </v-btn>
                         </div>
 
                         <div class="d-flex gap-3">
@@ -109,17 +100,11 @@
                     </v-card-title>
 
                     <v-card-text class="pa-md-6 pt-0">
-                        <v-card variant="outlined" class="mb-4 mb-md-6">
-                            <v-tabs v-model="tipoSeleccionado" color="primary" grow class="rounded-t">
-                                <v-tab value="diaria" class="text-none">
-                                    <v-icon start>mdi-calendar</v-icon>
-                                    Diaria
-                                </v-tab>
-                                <v-tab value="live" class="text-none">
-                                    <v-icon start>mdi-video</v-icon>
-                                    Live
-                                </v-tab>
-                            </v-tabs>
+                        <v-card variant="outlined" class="mb-4 mb-md-6 pa-3 bg-purple-lighten-5">
+                            <div class="d-flex align-center">
+                                <v-icon color="purple" class="mr-2">mdi-video</v-icon>
+                                <span class="font-weight-medium">Gestión de Ventas Live</span>
+                            </div>
                         </v-card>
 
                         <v-form ref="formVenta">
@@ -172,9 +157,13 @@
                                 class="mt-0"></v-checkbox>
 
 
-                            <v-btn color="primary" size="large" block class="mt-6 text-none" prepend-icon="mdi-plus"
+                            <v-btn :color="ventaEditandoId ? 'warning' : 'primary'" size="large" block class="mt-6 text-none" :prepend-icon="ventaEditandoId ? 'mdi-pencil' : 'mdi-plus'"
                                 @click="registrarVenta" :loading="registrando">
-                                Registrar Venta
+                                {{ ventaEditandoId ? 'Actualizar Venta' : 'Registrar Venta' }}
+                            </v-btn>
+                            <v-btn v-if="ventaEditandoId" variant="outlined" block class="mt-2 text-none" prepend-icon="mdi-close"
+                                @click="cancelarEdicion">
+                                Cancelar Edición
                             </v-btn>
                         </v-form>
                     </v-card-text>
@@ -189,10 +178,6 @@
                                 class="mr-2 mr-md-3">mdi-format-list-bulleted</v-icon>
                             <span class="text-subtitle-1 text-md-h6 font-weight-medium">
                                 Ventas Registradas
-                                <v-chip :color="tipoSeleccionado === 'live' ? 'purple' : 'blue'" size="x-small"
-                                    variant="tonal" class="ml-2 text-h6 pa-4">
-                                    {{ tipoSeleccionado === 'live' ? 'Live' : 'Diaria' }}
-                                </v-chip>
                             </span>
                         </div>
                         <v-tooltip location="top">
@@ -232,10 +217,10 @@
                         <v-list class="ventas-fijas pr-2" v-else>
                             <v-slide-y-transition group>
                                 <v-list-item v-for="(venta, index) in ventasFiltradas" :key="venta.id || index"
-                                    class="mb-3 rounded-lg border" :class="getVentaClass(venta.tipo)">
+                                    class="mb-3 rounded-lg border border-purple-lighten-4">
                                     <template #prepend>
-                                        <v-avatar :color="getVentaColor(venta.tipo)" size="40" variant="tonal">
-                                            <v-icon>{{ getVentaIcon(venta.tipo) }}</v-icon>
+                                        <v-avatar color="purple" size="40" variant="tonal">
+                                            <v-icon>mdi-video</v-icon>
                                         </v-avatar>
                                     </template>
 
@@ -261,9 +246,9 @@
                                             <span class="d-flex align-center">
                                                 <strong class="ml-2">{{ formatoMoneda(venta.monto) }}</strong>
                                             </span>
-                                            <v-chip class="ml-2" :color="getVentaColor(venta.tipo)" size="x-small"
+                                            <v-chip class="ml-2" color="purple" size="x-small"
                                                 variant="tonal">
-                                                {{ venta.tipo }}
+                                                Live
                                             </v-chip>
                                             <v-chip class="ml-2"
                                                 :color="esVentaDeHoy(venta.fecha) ? 'success' : 'warning'"
@@ -287,9 +272,9 @@
                                                         <strong>{{ venta.codigo }}</strong>
                                                     </span>
                                                     <div class="d-flex align-center gap-1">
-                                                        <v-chip :color="getVentaColor(venta.tipo)" size="x-small"
+                                                        <v-chip color="purple" size="x-small"
                                                             variant="tonal">
-                                                            {{ venta.tipo }}
+                                                            Live
                                                         </v-chip>
                                                         <v-chip
                                                             :color="esVentaDeHoy(venta.fecha) ? 'success' : 'warning'"
@@ -470,13 +455,10 @@
     </v-container>
 </template>
 
-<script setup
-    lang="ts">
-    import { ref, reactive, onMounted, computed, watch } from 'vue'
+<script setup lang="ts">
+    import { ref, reactive, onMounted, computed } from 'vue'
     import { useClientesStore } from '../stores/clientesStore'
-    // import { useRetirosStore } from '../stores/retirosStore';
-    import { db } from '../firebase'
-    import { collection, addDoc, getDocs, updateDoc, doc } from 'firebase/firestore'
+    import { supabase } from '../supabase'
     import draggable from 'vuedraggable'
 
     // Interfaces
@@ -505,11 +487,12 @@
     const registrando = ref(false)
     // const retirosStore = useRetirosStore();
     const generarRetiro = ref(true); // Variable para el checkbox
+    const ventaEditandoId = ref<string | null>(null); // ID de la venta en edición
 
     // Estado reactivo
     const ventasAgregadas = ref<Venta[]>([])
     const resumenVentas = ref<Resumen[]>([])
-    const nuevaVenta = reactive<Venta>({ codigo: '', monto: null, cliente: '', tipo: 'diaria', fecha: '', modoPago: '' })
+    const nuevaVenta = reactive<Venta>({ codigo: '', monto: null, cliente: '', tipo: 'live', fecha: '', modoPago: '' })
 
     // Opciones de modo de pago
     const modosPago = [
@@ -527,10 +510,9 @@
     const snackbar = ref(false)
     const snackbarGuardado = ref(false)
     const mensajeSnackbar = ref('')
-    const tipoSeleccionado = ref('diaria')
+    const tipoSeleccionado = ref('live')
     const dialogFiltro = ref(false)
     const filtroFecha = ref('')
-    const filtroTipo = ref('')
     const modoEdicion = ref(false)
     const busquedaVentas = ref('')
     const camposFormulario = ref([
@@ -624,11 +606,6 @@
         return d.toLocaleDateString('es-CL', { year: 'numeric', month: '2-digit', day: '2-digit' })
     }
 
-    // Watcher para actualizar la vista cuando cambie el tipo seleccionado
-    watch(tipoSeleccionado, (newTipo) => {
-        // La vista se actualiza automáticamente gracias a los computed properties
-        console.log(`Tipo de venta cambiado a: ${newTipo}`)
-    })
 
     // Funciones de drag and drop
     function cargarOrdenCampos() {
@@ -716,48 +693,121 @@
 
         registrando.value = true
         try {
-            ventasAgregadas.value.unshift({
-                ...nuevaVenta,
-                tipo: tipoSeleccionado.value,
-                fecha: new Date().toISOString(),
-                guardada: false
-            })
+            let clienteId = null;
+            if (nuevaVenta.cliente && nuevaVenta.cliente !== 'Cliente desconocido') {
+                const c = clientesStore.clientes.find(c => c.nombre === nuevaVenta.cliente);
+                if (c) clienteId = c.id;
+            }
+
+            const ventaData = {
+                codigo: nuevaVenta.codigo,
+                monto: nuevaVenta.monto,
+                cliente_id: clienteId,
+                tipo: 'live',
+                modo_pago: nuevaVenta.modoPago || null,
+            };
+
+            if (ventaEditandoId.value) {
+                // ACTUALIZAR venta existente
+                const { error } = await supabase.from('ventas').update(ventaData).eq('id', ventaEditandoId.value);
+                if (error) throw error;
+
+                // Actualizar en el array local
+                const idx = ventasAgregadas.value.findIndex(v => v.id === ventaEditandoId.value);
+                if (idx !== -1) {
+                    ventasAgregadas.value[idx] = {
+                        ...ventasAgregadas.value[idx],
+                        codigo: nuevaVenta.codigo,
+                        monto: nuevaVenta.monto,
+                        cliente: nuevaVenta.cliente,
+                        modoPago: nuevaVenta.modoPago,
+                        guardada: true
+                    };
+                }
+                mensajeSnackbar.value = '✅ Venta actualizada correctamente';
+                ventaEditandoId.value = null;
+            } else {
+                // CREAR nueva venta
+                const ventaInsert = { ...ventaData, fecha: new Date().toISOString() };
+                const { data, error } = await supabase.from('ventas').insert([ventaInsert]).select('*, clientes(nombre)');
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    const v = data[0];
+                    ventasAgregadas.value.unshift({
+                        id: v.id,
+                        codigo: v.codigo,
+                        monto: v.monto,
+                        tipo: v.tipo,
+                        fecha: v.fecha,
+                        modoPago: v.modo_pago,
+                        cliente: v.clientes?.nombre || nuevaVenta.cliente || 'Cliente desconocido',
+                        guardada: true
+                    });
+
+                    // Si el checkbox de retiro está marcado, crear retiro
+                    if (generarRetiro.value) {
+                        const retiroData = {
+                            venta_id: v.id,
+                            cliente_id: clienteId,
+                            monto: v.monto,
+                            estado: 'pendiente',
+                            fecha: new Date().toISOString()
+                        };
+                        const { error: retiroError } = await supabase.from('retiros').insert([retiroData]);
+                        if (retiroError) console.error('Error creando retiro:', retiroError);
+                    }
+                }
+                mensajeSnackbar.value = '✅ Venta registrada correctamente';
+            }
+
+            snackbarGuardado.value = true;
             nuevaVenta.codigo = ''
             nuevaVenta.monto = null
             nuevaVenta.cliente = ''
             nuevaVenta.modoPago = ''
+        } catch (err) {
+            console.error('Error guardando venta:', err);
+            mensajeSnackbar.value = '❌ Error al guardar la venta';
+            snackbarGuardado.value = true;
         } finally {
             registrando.value = false
         }
     }
 
-    function editarVenta(index: number) {
-        const c = ventasAgregadas.value[index]
-        nuevaVenta.codigo = c.codigo
-        nuevaVenta.monto = c.monto
-        nuevaVenta.cliente = c.cliente
-        nuevaVenta.modoPago = c.modoPago || ''
-        tipoSeleccionado.value = c.tipo || 'diaria'
-        ventasAgregadas.value.splice(index, 1)
-    }
-
-    function eliminarVenta(index: number) {
-        ventasAgregadas.value.splice(index, 1)
-    }
-
     function editarVentaFiltrada(ventaAEditar: Venta) {
-        const indexReal = ventasAgregadas.value.findIndex(v => v === ventaAEditar);
-
-        if (indexReal !== -1) {
-            editarVenta(indexReal)
-        }
+        // Cargar datos en el formulario y guardar el ID para hacer update
+        nuevaVenta.codigo = ventaAEditar.codigo
+        nuevaVenta.monto = ventaAEditar.monto
+        nuevaVenta.cliente = ventaAEditar.cliente
+        nuevaVenta.modoPago = ventaAEditar.modoPago || ''
+        ventaEditandoId.value = ventaAEditar.id || null
     }
 
-    function eliminarVentaFiltrada(ventaAEliminar: Venta) {
-        const indexReal = ventasAgregadas.value.findIndex(v => v === ventaAEliminar);
+    function cancelarEdicion() {
+        ventaEditandoId.value = null
+        nuevaVenta.codigo = ''
+        nuevaVenta.monto = null
+        nuevaVenta.cliente = ''
+        nuevaVenta.modoPago = ''
+    }
 
-        if (indexReal !== -1) {
-            eliminarVenta(indexReal)
+    async function eliminarVentaFiltrada(ventaAEliminar: Venta) {
+        if (!confirm('¿Estás seguro de eliminar esta venta?')) return;
+
+        try {
+            if (ventaAEliminar.id) {
+                const { error } = await supabase.from('ventas').delete().eq('id', ventaAEliminar.id);
+                if (error) throw error;
+            }
+            const idx = ventasAgregadas.value.findIndex(v => v === ventaAEliminar);
+            if (idx !== -1) ventasAgregadas.value.splice(idx, 1);
+            mensajeSnackbar.value = '✅ Venta eliminada correctamente';
+            snackbarGuardado.value = true;
+        } catch (err) {
+            console.error('Error eliminando venta:', err);
+            mensajeSnackbar.value = '❌ Error al eliminar la venta';
+            snackbarGuardado.value = true;
         }
     }
 
@@ -823,159 +873,37 @@ Equipo de Menaje House`
         resumenVentas.value = []
     }
 
-    // Guardar ventas en Firestore con UPSERT (actualizar existentes o crear nuevas)
-    async function guardarVentas() {
-        registrando.value = true;
-        try {
-            for (const venta of ventasAgregadas.value) {
-                // Determinar el estado de pago basado en si tiene modo de pago
-                const estadoPago = venta.modoPago ? 'pagado' : 'pendiente';
-
-                const ventaData = {
-                    codigo: venta.codigo,
-                    monto: venta.monto,
-                    cliente: venta.cliente || "Cliente desconocido",
-                    tipo: venta.tipo || 'diaria',
-                    fecha: venta.fecha || new Date().toISOString(),
-                    modoPago: venta.modoPago || null,
-                    estadoPago: estadoPago
-                };
-
-                let ventaDocRef: any;
-                const esVentaNueva = !venta.id; // Verificar si es venta nueva ANTES de asignar ID
-
-                // Si la venta tiene ID, significa que ya existe en Firestore
-                if (venta.id) {
-                    // ACTUALIZAR venta existente
-                    const docRef = doc(db, "ventas", venta.id);
-                    await updateDoc(docRef, ventaData);
-                    ventaDocRef = docRef;
-                    venta.guardada = true; // Marcar como guardada
-                    console.log(`✏️ Venta actualizada: ${venta.id}`);
-                } else {
-                    // CREAR nueva venta
-                    ventaDocRef = await addDoc(collection(db, "ventas"), {
-                        ...ventaData,
-                        retiroId: null
-                    });
-                    // Actualizar el ID en el array local para futuras actualizaciones
-                    venta.id = ventaDocRef.id;
-                    venta.guardada = true; // Marcar como guardada
-                    console.log(`✅ Venta nueva creada: ${ventaDocRef.id}`);
-                }
-
-                // Si el checkbox de retiro está marcado y es una venta NUEVA
-                if (generarRetiro.value && esVentaNueva) {
-                    // Buscar el ID del cliente si existe
-                    let clienteId = "Cliente desconocido";
-                    if (venta.cliente && venta.cliente !== "Cliente desconocido") {
-                        const clienteEncontrado = clientesStore.clientes.find(c => c.nombre === venta.cliente);
-                        if (clienteEncontrado) {
-                            clienteId = clienteEncontrado.id;
-                        }
-                    }
-
-                    const retiroData = {
-                        ventaId: ventaDocRef.id,
-                        clienteId: clienteId,
-                        monto: venta.monto,
-                        estado: 'pendiente',
-                        fecha: new Date().toISOString()
-                    };
-
-                    const retiroDocRef = await addDoc(collection(db, "retiros"), retiroData);
-                    await updateDoc(ventaDocRef, { retiroId: retiroDocRef.id });
-                    console.log(`✅ Retiro creado para venta: ${ventaDocRef.id}`);
-                }
-            }
-            mensajeSnackbar.value = "✅ Ventas guardadas/actualizadas correctamente";
-            snackbarGuardado.value = true;
-        } catch (err) {
-            console.error("Error guardando ventas:", err);
-            mensajeSnackbar.value = "❌ Ocurrió un error al guardar ventas";
-            snackbarGuardado.value = true;
-        } finally {
-            registrando.value = false;
-            // NO limpiamos las ventas para mantenerlas visibles
-            // limpiarVentas();
-        }
-    }
-    // async function guardarVentas() {
-    //     registrando.value = true;
-    //     try {
-    //         for (const venta of ventasAgregadas.value) {
-    //             // Condición para omitir ventas live sin cliente
-    //             if (venta.tipo === 'live' && (!venta.cliente || venta.cliente.trim() === '')) {
-    //                 console.log('Venta live sin cliente, omitiendo guardar:', venta);
-    //                 continue; // Saltar a la siguiente iteración del bucle
-    //             }
-
-    //             // Guarda la venta en la colección 'ventas' y obtiene el ID
-    //             const ventaDocRef = await addDoc(collection(db, "ventas"), {
-    //                 codigo: venta.codigo,
-    //                 monto: venta.monto,
-    //                 cliente: venta.cliente || "Cliente desconocido",
-    //                 tipo: venta.tipo || 'diaria',
-    //                 fecha: venta.fecha || new Date().toISOString(),
-    //                 modoPago: venta.modoPago || null,
-    //                 retiroId: null // Se inicializa como nulo
-    //             });
-
-    //             // Si el checkbox de retiro está marcado, crea un retiro pendiente
-    //             if (generarRetiro.value) {
-    //                 const retiroData = {
-    //                     ventaId: ventaDocRef.id, // Enlace a la venta
-    //                     cliente: venta.cliente || "Cliente desconocido",
-    //                     monto: venta.monto,
-    //                     estado: 'pendiente',
-    //                     fecha: new Date().toISOString()
-    //                 };
-
-    //                 // Crea el documento en la colección 'retiros'
-    //                 const retiroDocRef = await addDoc(collection(db, "retiros"), retiroData);
-
-    //                 // Actualiza el documento de venta con el ID del retiro recién creado
-    //                 await updateDoc(ventaDocRef, { retiroId: retiroDocRef.id });
-    //             }
-    //         }
-    //         alert("✅ Ventas guardadas en Firestore");
-    //     } catch (err) {
-    //         console.error("Error guardando ventas:", err);
-    //         alert("❌ Ocurrió un error al guardar ventas");
-    //     } finally {
-    //         registrando.value = false;
-    //         limpiarVentas();
-    //     }
-    // }
 
     async function abrirVentasFiltradas() {
         try {
             ventasAgregadas.value = []
-            const querySnapshot = await getDocs(collection(db, "ventas"))
-            querySnapshot.forEach((doc) => {
-                const data = doc.data() as Venta
+            let query = supabase.from('ventas').select('*, clientes(nombre)').eq('tipo', 'live'); // Forzando live
+
+            const { data, error } = await query;
+            if (error) throw error;
+
+            data.forEach((v: any) => {
                 let mostrar = true
-                const ventaConId = { ...data, id: doc.id, guardada: true };
+                const ventaConId: Venta = {
+                    id: v.id,
+                    codigo: v.codigo,
+                    monto: v.monto,
+                    tipo: v.tipo,
+                    fecha: v.fecha,
+                    modoPago: v.modo_pago,
+                    cliente: v.clientes?.nombre || v.cliente_id || 'Cliente desconocido',
+                    guardada: true
+                };
 
                 // Si hay fecha seleccionada, cargar TODAS las ventas de ese día
                 if (filtroFecha.value) {
-                    const ventaFecha = new Date(data.fecha || '').toLocaleDateString('es-CL')
+                    const ventaFecha = new Date(v.fecha || '').toLocaleDateString('es-CL')
                     const filtro = new Date(filtroFecha.value).toLocaleDateString('es-CL')
                     if (ventaFecha !== filtro) mostrar = false
                 }
 
-                // Si hay tipo seleccionado, filtrar por tipo también
-                if (filtroTipo.value && data.tipo !== filtroTipo.value) {
-                    mostrar = false
-                }
-
                 if (mostrar) ventasAgregadas.value.push(ventaConId)
             })
-
-            // Si se cargaron ventas y hay tipo seleccionado, actualizar el tipo seleccionado
-            if (ventasAgregadas.value.length > 0 && filtroTipo.value) {
-                tipoSeleccionado.value = filtroTipo.value
-            }
 
             dialogFiltro.value = false
         } catch (err) {
@@ -988,23 +916,30 @@ Equipo de Menaje House`
     async function cargarVentasDelDia() {
         try {
             const hoy = new Date()
-            const hoyStr = hoy.toLocaleDateString('es-CL')
+            const inicioDelDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).toISOString();
 
-            const querySnapshot = await getDocs(collection(db, "ventas"))
+            const { data, error } = await supabase
+                .from('ventas')
+                .select('*, clientes(nombre)')
+                .eq('tipo', 'live') // FORZAR TIPO LIVE
+                .gte('fecha', inicioDelDia)
+                .order('fecha', { ascending: false });
+
+            if (error) throw error;
+
             const ventasDelDia: Venta[] = []
 
-            querySnapshot.forEach((doc) => {
-                const data = doc.data() as Venta
-                const ventaFecha = new Date(data.fecha || '').toLocaleDateString('es-CL')
-
-                // Solo cargar ventas del día actual
-                if (ventaFecha === hoyStr) {
-                    ventasDelDia.push({
-                        ...data,
-                        id: doc.id,
-                        guardada: true
-                    })
-                }
+            data.forEach((v: any) => {
+                ventasDelDia.push({
+                    id: v.id,
+                    codigo: v.codigo,
+                    monto: v.monto,
+                    tipo: v.tipo,
+                    fecha: v.fecha,
+                    modoPago: v.modo_pago,
+                    cliente: v.clientes?.nombre || v.cliente_id || 'Cliente desconocido',
+                    guardada: true
+                });
             })
 
             ventasAgregadas.value = ventasDelDia
@@ -1014,18 +949,7 @@ Equipo de Menaje House`
         }
     }
 
-    // Funciones de estilo
-    function getVentaColor(tipo?: string) {
-        return tipo === 'live' ? 'purple' : 'blue'
-    }
 
-    function getVentaIcon(tipo?: string) {
-        return tipo === 'live' ? 'mdi-video' : 'mdi-calendar'
-    }
-
-    function getVentaClass(tipo?: string) {
-        return tipo === 'live' ? 'border-purple-lighten-4' : 'border-blue-lighten-4'
-    }
 
     // Funciones para modo de pago
     function getModoPagoColor(modoPago?: string) {

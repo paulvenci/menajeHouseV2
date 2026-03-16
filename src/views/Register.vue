@@ -16,11 +16,9 @@
     </v-app>
 </template>
 
-<script setup
-    lang="ts">
+<script setup lang="ts">
     import { ref } from 'vue'
-    import { createUserWithEmailAndPassword } from 'firebase/auth'
-    import { auth } from '../firebase'
+    import { supabase } from '../supabase'
 
     const email = ref('')
     const password = ref('')
@@ -31,9 +29,19 @@
         error.value = null
         loading.value = true
         try {
-            const userCredential = await createUserWithEmailAndPassword(auth, email.value, password.value)
-            console.log("Usuario creado:", userCredential.user)
-            alert("✅ Cuenta creada con: " + userCredential.user.email)
+            const { data, error: signUpError } = await supabase.auth.signUp({
+                email: email.value,
+                password: password.value,
+            })
+            
+            if (signUpError) throw signUpError
+            
+            console.log("Usuario creado:", data.user)
+            
+            // Supabase por defecto requiere verificación de email.
+            // Si quieres evitarlo, debes deshabilitarlo en el panel de Supabase:
+            // Authentication -> Providers -> Email -> Desmarcar "Confirm email"
+            alert("✅ Cuenta creada con: " + data.user?.email + ". Si has habilitado la confirmación, por favor verifica tu correo.")
         } catch (err: any) {
             error.value = "Error: " + err.message
         } finally {

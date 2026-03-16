@@ -18,8 +18,7 @@
 <script setup
     lang="ts">
     import { ref, onMounted, onUnmounted } from 'vue'
-    import { collection, onSnapshot } from 'firebase/firestore'
-    import { db } from '../firebase'
+    // Importaciones de Firebase eliminadas. Usaremos los Stores de Supabase.
     import StatsCards from '@/components/StatsCards.vue'
     import PendingWithdrawals from '@/components/PendingWithdrawals.vue'
     import PendingPayments from '@/components/PendingPayments.vue'
@@ -32,13 +31,7 @@
     import { useVentasStore } from '../stores/ventasStores'; // Importa el store de ventas
     const ventasStore = useVentasStore(); // Usa el store de ventas
     const monthlySales = ref({}); // Variable para almacenar los datos del gráfico
-    // Interfaces para tipar los datos de Firestore
-    interface Venta {
-        id: string;
-        monto: number;
-        tipo: 'diaria' | 'live';
-        fecha: any; // Timestamp de Firestore
-    }
+
 
     // Interfaces
     // interface Retiro {
@@ -90,16 +83,18 @@
     // Nos conectamos a Firestore al montar el componente
     onMounted(async () => {
         // --- Estadísticas de Ventas ---
-        const ventasCol = collection(db, 'ventas');
-        unsubscribeVentas = onSnapshot(ventasCol, (snapshot) => {
+        // TODO: Migrar lógica a Tiempo Real de Supabase (channels) o recargar al montar
+        try {
+            await ventasStore.cargarVentasDelDia()
+            // Podrías mapear 'ventasStore.ventas' para sacar statistics básicas.
+            // Para simplificar, confiaremos en los datos que traiga el store:
             const { startOfMonth, endOfMonth } = getCurrentMonthRange();
             let total = 0, totalLive = 0, totalDiaria = 0, cantidad = 0;
-
-            snapshot.forEach(doc => {
-                const venta = doc.data() as Venta;
-                // Verificar si la venta tiene fecha y está en el mes actual
-                if (venta.fecha) {
-                    const ventaDate = venta.fecha.toDate ? venta.fecha.toDate() : new Date(venta.fecha);
+            
+            // Asumiendo que recargaste todas o usas las de hoy...
+            ventasStore.ventas.forEach(venta => {
+               if (venta.fecha) {
+                    const ventaDate = new Date(venta.fecha);
                     if (ventaDate >= startOfMonth && ventaDate <= endOfMonth) {
                         total += venta.monto || 0;
                         cantidad++;
@@ -107,10 +102,11 @@
                         else totalDiaria += venta.monto || 0;
                     }
                 }
-            });
+            })
             stats.value = { totalVentas: total, totalVentasLive: totalLive, totalVentasDiarias: totalDiaria, cantidadVentas: cantidad };
-            loading.value = false;
-        }, (error) => console.error("Error al obtener ventas:", error));
+        } catch(error) {
+           console.error("Error cargando ventas para estadisticas", error)
+        }
 
 
         // --- Pagos Pendientes ---

@@ -28,12 +28,12 @@
     const router = useRouter()
 
     const menuItems = [
-        { title: 'Dashboard', value: 'dashboard', icon: 'mdi-view-dashboard', route: '/' },
-        { title: 'Ventas', value: 'ventas', icon: 'mdi-cart', route: '/ventas' },
+        { title: 'Dashboard', value: 'dashboard', icon: 'mdi-view-dashboard', route: '/dashboard' },
+        { title: 'Venta Diaria', value: 'ventas-diarias', icon: 'mdi-calendar', route: '/ventas-diarias' },
+        { title: 'Venta Live', value: 'ventas-live', icon: 'mdi-video', route: '/ventas-live' },
+        { title: 'Retiros', value: 'retiros', icon: 'mdi-package-variant', route: '/retiros' },
         { title: 'Clientes', value: 'clientes', icon: 'mdi-account', route: '/clientes' },
         { title: 'Historial Ventas', value: 'historialVenta', icon: 'mdi-chart-bar', route: '/historialVentas' }
-
-
     ]
 
     const selectItem = (item: any) => {

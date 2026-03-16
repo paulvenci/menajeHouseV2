@@ -32,12 +32,11 @@
     </v-container>
 </template>
 
-<script setup
-    lang="ts">
+<script setup lang="ts">
     import { ref } from 'vue'
     import { useRouter } from 'vue-router'
-    import { auth } from '../firebase'
-    import { signInWithEmailAndPassword } from 'firebase/auth'
+    import { supabase } from '../supabase'
+    import { useAuthStore } from '../stores/authStore'
 
     // Importa la imagen de fondo si quieres usar Vite
     // import background from '../assets/image1.png'
@@ -52,8 +51,18 @@
         error.value = null
         loading.value = true
         try {
-            const userCredential = await signInWithEmailAndPassword(auth, email.value, password.value)
-            console.log("Usuario logueado:", userCredential.user)
+            const { data, error: signInError } = await supabase.auth.signInWithPassword({
+                email: email.value,
+                password: password.value,
+            })
+            
+            if (signInError) throw signInError
+            
+            console.log("Usuario logueado:", data.user)
+            
+            const authStore = useAuthStore()
+            authStore.user = data.user
+            
             router.push('/dashboard')
         } catch (err: any) {
             error.value = "Error: " + err.message

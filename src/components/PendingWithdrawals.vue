@@ -1,8 +1,7 @@
 <script setup
     lang="ts">
     import { ref, computed } from 'vue';
-    import { doc, updateDoc } from 'firebase/firestore';
-    import { db } from '../firebase';
+    import { supabase } from '../supabase';
     import { useRetirosStore } from '../stores/retirosStore';
     import RetiroDialog from './RetiroDialog.vue';
     import type { Retiro } from '../stores/retirosStore';
@@ -93,12 +92,12 @@
 
             for (const retiroId of seleccionados.value) {
                 try {
-                    const retiroRef = doc(db, 'retiros', retiroId);
-                    await updateDoc(retiroRef, {
+                    const { error } = await supabase.from('retiros').update({
                         estado: 'retirado',
-                        retiradoPor: retiroData.value.retiradoPor,
-                        fechaRetiro: retiroData.value.fechaRetiro
-                    });
+                        retirado_por: retiroData.value.retiradoPor,
+                        fecha_retiro: retiroData.value.fechaRetiro
+                    }).eq('id', retiroId);
+                    if (error) throw error;
                     exitosos++;
                 } catch (error) {
                     console.error(`Error procesando retiro ${retiroId}:`, error);
@@ -132,7 +131,7 @@
 
     function calcularTotalSeleccionados() {
         return props.withdrawals
-            .filter(r => seleccionados.value.includes(r.id))
+            .filter(r => r.id && seleccionados.value.includes(r.id))
             .reduce((total, r) => total + (r.monto || 0), 0);
     }
 </script>

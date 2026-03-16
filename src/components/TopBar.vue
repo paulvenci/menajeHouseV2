@@ -27,12 +27,10 @@
     </v-app-bar>
 </template>
 
-<script setup
-    lang="ts">
+<script setup lang="ts">
     import { ref, computed } from 'vue'
     import { useRouter } from 'vue-router'
-    import { signOut } from 'firebase/auth'
-    import { auth } from '../firebase'
+    import { useAuthStore } from '../stores/authStore'
     import { useTheme } from 'vuetify'
 
     defineProps<{ sectionName: string }>()
@@ -40,6 +38,7 @@
     const avatar = ref('/default-avatar.png')
     const router = useRouter()
     const theme = useTheme()
+    const authStore = useAuthStore()
 
     // Computed para saber si el tema actual es oscuro
     const isDark = computed(() => theme.global.current.value.dark)
@@ -60,7 +59,7 @@
     const changeAvatar = () => alert('Funcionalidad cambiar avatar')
     const changePassword = () => alert('Funcionalidad cambiar contraseña')
     const logout = async () => {
-        await signOut(auth)
+        await authStore.signOut()
         router.push('/')
     }
 </script>

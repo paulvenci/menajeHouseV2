@@ -1,9 +1,8 @@
 // stores/retirosStore.ts
 import { defineStore } from 'pinia';
-import { collection, addDoc, getDocs, doc, updateDoc, query, where, orderBy, getDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 // import { useVentasStore } from './ventasStores';
-import { useClientesStore } from './clientesStore';
+// import { useClientesStore } from './clientesStore';
 
 export interface Retiro {
     id?: string;
@@ -27,45 +26,42 @@ export const useRetirosStore = defineStore('retiros', {
     actions: {
         async cargarRetirosDelMes() {
             try {
-                // Obtenemos el primer y último día del mes actual como objetos de tipo Date
+                // Obtenemos el primer y último día del mes actual
                 const hoy = new Date();
                 const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
                 const ultimoDiaMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
 
-                // CORRECCIÓN: La consulta ahora compara cadenas de texto (ISO Strings)
-                const retirosQuery = query(
-                    collection(db, 'retiros'),
-                    where('fecha', '>=', primerDiaMes.toISOString()),
-                    where('fecha', '<=', ultimoDiaMes.toISOString()),
-                    orderBy('fecha')
-                );
-                const snapshot = await getDocs(retirosQuery);
-                // ESTA LÍNEA ES CRUCIAL
-                console.log("Documentos leídos:", snapshot.docs.map(doc => doc.data()));
+                // Consulta a Supabase con Joins (Relaciones)
+                const { data, error } = await supabase
+                    .from('retiros')
+                    .select(`
+                        *,
+                        ventas ( codigo, tipo ),
+                        clientes ( nombre )
+                    `)
+                    .gte('fecha', primerDiaMes.toISOString())
+                    .lte('fecha', ultimoDiaMes.toISOString())
+                    .order('fecha');
+                    
+                if (error) throw error;
+                
+                console.log("Documentos leídos de Supabase:", data);
 
-                // const snapshot = await getDocs(retirosQuery);
-                const retirosTemp: Retiro[] = [];
-                const clientesStore = useClientesStore();
-                // const ventasStore = useVentasStore();
-
-                console.log(snapshot.docs);
-                for (const docSnap of snapshot.docs) {
-                    const data = docSnap.data() as Retiro;
-                    const cliente = clientesStore.clientes.find(c => c.id === data.clienteId);
-
-                    const ventaDoc = await getDoc(doc(db, 'ventas', data.ventaId));
-                    const ventaData = ventaDoc.exists() ? ventaDoc.data() : {};
-                    const codigoVenta = ventaData.codigo || 'N/A';
-                    const tipoVenta = ventaData.tipo || 'N/A';
-
-                    retirosTemp.push({
-                        id: docSnap.id,
-                        ...data,
-                        clienteNombre: cliente ? cliente.nombre : 'Desconocido',
-                        codigoVenta: codigoVenta,
-                        tipoVenta: tipoVenta,
-                    });
-                }
+                const retirosTemp: Retiro[] = data.map((d: any) => ({
+                    id: d.id,
+                    ventaId: d.venta_id,
+                    clienteId: d.cliente_id,
+                    monto: d.monto,
+                    estado: d.estado,
+                    fecha: d.fecha,
+                    retiradoPor: d.retirado_por,
+                    fechaRetiro: d.fecha_retiro,
+                    // Datos traídos con el JOIN
+                    clienteNombre: d.clientes?.nombre || 'Desconocido',
+                    codigoVenta: d.ventas?.codigo || 'N/A',
+                    tipoVenta: d.ventas?.tipo || 'N/A'
+                }));
+                
                 this.retiros = retirosTemp;
 
             } catch (error) {
@@ -76,19 +72,25 @@ export const useRetirosStore = defineStore('retiros', {
 
         async procesarRetiro(retiroId: string, data: { retiradoPor: string }) {
             try {
-                const docRef = doc(db, 'retiros', retiroId);
-                await updateDoc(docRef, {
-                    ...data,
-                    estado: 'completado',
-                    fechaRetiro: new Date().toISOString()
-                });
+                const fechaActual = new Date().toISOString()
+                const { error } = await supabase
+                    .from('retiros')
+                    .update({
+                        retirado_por: data.retiradoPor,
+                        estado: 'completado',
+                        fecha_retiro: fechaActual
+                    })
+                    .eq('id', retiroId)
+
+                if (error) throw error;
+
                 console.log("✅ Retiro procesado exitosamente");
                 const index = this.retiros.findIndex(r => r.id === retiroId);
                 if (index !== -1) {
                     this.retiros[index].estado = 'completado';
                     this.retiros[index].retiradoPor = data.retiradoPor;
                     // this.retiros[index].modoPago = data.modoPago;
-                    this.retiros[index].fechaRetiro = new Date().toISOString();
+                    this.retiros[index].fechaRetiro = fechaActual;
                 }
             } catch (error) {
                 console.error("❌ Error al procesar retiro:", error);
@@ -98,9 +100,29 @@ export const useRetirosStore = defineStore('retiros', {
 
         async agregarRetiro(retiro: Omit<Retiro, 'id'>) {
             try {
-                const docRef = await addDoc(collection(db, 'retiros'), retiro);
-                this.retiros.unshift({ ...retiro, id: docRef.id });
-                console.log("✅ Retiro pendiente creado");
+                // Preparar payload en snake_case para BD
+                const retiroPayload = {
+                    venta_id: retiro.ventaId,
+                    cliente_id: retiro.clienteId,
+                    monto: retiro.monto,
+                    estado: retiro.estado,
+                    fecha: retiro.fecha || new Date().toISOString()
+                }
+
+                const { data, error } = await supabase
+                    .from('retiros')
+                    .insert([retiroPayload])
+                    .select()
+                    
+                if (error) throw error;
+                
+                if (data && data.length > 0) {
+                     this.retiros.unshift({ 
+                        ...retiro, 
+                        id: data[0].id 
+                    });
+                    console.log("✅ Retiro pendiente creado");
+                }
             } catch (error) {
                 console.error("❌ Error al crear retiro:", error);
                 throw error;
