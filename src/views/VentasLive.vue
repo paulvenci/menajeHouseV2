@@ -492,7 +492,7 @@
     // Estado reactivo
     const ventasAgregadas = ref<Venta[]>([])
     const resumenVentas = ref<Resumen[]>([])
-    const nuevaVenta = reactive<Venta>({ codigo: '', monto: null, cliente: '', tipo: 'live', fecha: '', modoPago: '' })
+    const nuevaVenta = reactive<Venta>({ codigo: '', monto: null, cliente: '', tipo: 'Venta Live', fecha: '', modoPago: '' })
 
     // Opciones de modo de pago
     const modosPago = [
@@ -510,7 +510,7 @@
     const snackbar = ref(false)
     const snackbarGuardado = ref(false)
     const mensajeSnackbar = ref('')
-    const tipoSeleccionado = ref('live')
+    const tipoSeleccionado = ref('Venta Live')
     const dialogFiltro = ref(false)
     const filtroFecha = ref('')
     const modoEdicion = ref(false)
@@ -703,7 +703,7 @@
                 codigo: nuevaVenta.codigo,
                 monto: nuevaVenta.monto,
                 cliente_id: clienteId,
-                tipo: 'live',
+                tipo: 'Venta Live',
                 modo_pago: nuevaVenta.modoPago || null,
             };
 
@@ -877,7 +877,7 @@ Equipo de Menaje House`
     async function abrirVentasFiltradas() {
         try {
             ventasAgregadas.value = []
-            let query = supabase.from('ventas').select('*, clientes(nombre)').eq('tipo', 'live'); // Forzando live
+            let query = supabase.from('ventas').select('*, clientes(nombre)').eq('tipo', 'Venta Live'); // Forzando live
 
             const { data, error } = await query;
             if (error) throw error;
@@ -921,7 +921,7 @@ Equipo de Menaje House`
             const { data, error } = await supabase
                 .from('ventas')
                 .select('*, clientes(nombre)')
-                .eq('tipo', 'live') // FORZAR TIPO LIVE
+                .eq('tipo', 'Venta Live') // FORZAR TIPO LIVE
                 .gte('fecha', inicioDelDia)
                 .order('fecha', { ascending: false });
 

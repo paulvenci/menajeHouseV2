@@ -41,10 +41,10 @@
                     </template>
 
                     <template v-slot:item.tipo="{ item }">
-                        <v-chip :color="item.tipo === 'live' ? 'purple' : 'blue'" size="small" variant="tonal">
-                            <v-icon size="small" class="mr-1">{{ item.tipo === 'live' ? 'mdi-video' : 'mdi-calendar'
+                        <v-chip :color="item.tipo === 'Venta Live' ? 'purple' : 'blue'" size="small" variant="tonal">
+                            <v-icon size="small" class="mr-1">{{ item.tipo === 'Venta Live' ? 'mdi-video' : 'mdi-calendar'
                             }}</v-icon>
-                            {{ item.tipo === 'live' ? 'Live' : 'Diaria' }}
+                            {{ item.tipo === 'Venta Live' ? 'Live' : 'Diaria' }}
                         </v-chip>
                     </template>
 

@@ -98,7 +98,7 @@
                     if (ventaDate >= startOfMonth && ventaDate <= endOfMonth) {
                         total += venta.monto || 0;
                         cantidad++;
-                        if (venta.tipo === 'live') totalLive += venta.monto || 0;
+                        if (venta.tipo === 'Venta Live') totalLive += venta.monto || 0;
                         else totalDiaria += venta.monto || 0;
                     }
                 }

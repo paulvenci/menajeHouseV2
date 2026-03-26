@@ -58,11 +58,11 @@
                     <p><strong>Monto:</strong> ${{ retiro.monto.toLocaleString('es-CL') }}</p>
                     <p><strong>Código de Venta:</strong> {{ retiro.codigoVenta }}</p>
                     <p><strong>Tipo de Venta:</strong>
-                        <v-chip :color="retiro.tipoVenta === 'live' ? 'purple' : 'blue'" size="x-small" variant="tonal"
+                        <v-chip :color="retiro.tipoVenta === 'Venta Live' ? 'purple' : 'blue'" size="x-small" variant="tonal"
                             class="ml-2">
-                            <v-icon size="x-small" class="mr-1">{{ retiro.tipoVenta === 'live' ? 'mdi-video' :
+                            <v-icon size="x-small" class="mr-1">{{ retiro.tipoVenta === 'Venta Live' ? 'mdi-video' :
                                 'mdi-calendar' }}</v-icon>
-                            {{ retiro.tipoVenta === 'live' ? 'Live' : 'Diaria' }}
+                            {{ retiro.tipoVenta === 'Venta Live' ? 'Live' : 'Diaria' }}
                         </v-chip>
                     </p>
 

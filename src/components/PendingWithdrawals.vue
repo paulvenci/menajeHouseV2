@@ -208,10 +208,10 @@
                         }) : 'Sin Fecha' }}
                     </template>
                     <template v-slot:item.tipoVenta="{ item }">
-                        <v-chip :color="item.tipoVenta === 'live' ? 'purple' : 'blue'" size="x-small" variant="tonal">
-                            <v-icon size="x-small" class="mr-1">{{ item.tipoVenta === 'live' ? 'mdi-video' :
+                        <v-chip :color="item.tipoVenta === 'Venta Live' ? 'purple' : 'blue'" size="x-small" variant="tonal">
+                            <v-icon size="x-small" class="mr-1">{{ item.tipoVenta === 'Venta Live' ? 'mdi-video' :
                                 'mdi-calendar' }}</v-icon>
-                            {{ item.tipoVenta === 'live' ? 'Live' : 'Diaria' }}
+                            {{ item.tipoVenta === 'Venta Live' ? 'Live' : 'Diaria' }}
                         </v-chip>
                     </template>
                     <template v-slot:item.monto="{ item }">

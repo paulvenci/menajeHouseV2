@@ -494,7 +494,7 @@
     // Estado reactivo
     const ventasAgregadas = ref<Venta[]>([])
     const resumenVentas = ref<Resumen[]>([])
-    const nuevaVenta = reactive<Venta>({ codigo: '', monto: null, cliente: '', tipo: 'diaria', fecha: '', modoPago: '' })
+    const nuevaVenta = reactive<Venta>({ codigo: '', monto: null, cliente: '', tipo: 'Venta Diaria', fecha: '', modoPago: '' })
 
     // Opciones de modo de pago
     const modosPago = [
@@ -512,7 +512,7 @@
     const snackbar = ref(false)
     const snackbarGuardado = ref(false)
     const mensajeSnackbar = ref('')
-    const tipoSeleccionado = ref('diaria')
+    const tipoSeleccionado = ref('Venta Diaria')
     const dialogFiltro = ref(false)
     const filtroFecha = ref('')
     const modoEdicion = ref(false)
@@ -716,7 +716,7 @@
         nuevaVenta.monto = c.monto
         nuevaVenta.cliente = c.cliente
         nuevaVenta.modoPago = c.modoPago || ''
-        tipoSeleccionado.value = c.tipo || 'diaria'
+        tipoSeleccionado.value = c.tipo || 'Venta Diaria'
         ventasAgregadas.value.splice(index, 1)
     }
 
@@ -817,7 +817,7 @@ Equipo de Menaje House`
                     codigo: venta.codigo,
                     monto: venta.monto,
                     cliente_id: clienteId,
-                    tipo: venta.tipo || 'diaria',
+                    tipo: venta.tipo || 'Venta Diaria',
                     fecha: venta.fecha || new Date().toISOString(),
                     modo_pago: venta.modoPago || null,
                 };
@@ -874,7 +874,7 @@ Equipo de Menaje House`
     async function abrirVentasFiltradas() {
         try {
             ventasAgregadas.value = []
-            let query = supabase.from('ventas').select('*, clientes(nombre)').eq('tipo', 'diaria'); // Forzando diaria
+            let query = supabase.from('ventas').select('*, clientes(nombre)').eq('tipo', 'Venta Diaria'); // Forzando diaria
 
             const { data, error } = await query;
             if (error) throw error;
@@ -918,7 +918,7 @@ Equipo de Menaje House`
             const { data, error } = await supabase
                 .from('ventas')
                 .select('*, clientes(nombre)')
-                .eq('tipo', 'diaria') // FORZAR TIPO DIARIA
+                .eq('tipo', 'Venta Diaria') // FORZAR TIPO DIARIA
                 .gte('fecha', inicioDelDia)
                 .order('fecha', { ascending: false });
 
