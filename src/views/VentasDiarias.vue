@@ -8,18 +8,11 @@
                             @click="dialogFiltro = true" class="text-none mr-2" size="default">
                             Cargar
                         </v-btn>
-                        <v-btn color="success" variant="elevated" prepend-icon="mdi-content-save" @click="guardarVentas"
-                            class="text-none mr-2" size="default" :disabled="ventasAgregadas.length === 0">
-                            Guardar
-                        </v-btn>
                         <v-btn color="warning" variant="elevated" prepend-icon="mdi-delete-sweep" @click="limpiarVentas"
                             class="text-none mr-2" size="default" :disabled="ventasAgregadas.length === 0">
                             Limpiar
                         </v-btn>
-                        <v-btn color="info" variant="elevated" prepend-icon="mdi-group" @click="agruparVentas"
-                            class="text-none mr-2" size="default" :disabled="ventasAgregadas.length === 0">
-                            Agrupar
-                        </v-btn>
+
                         <v-btn color="primary" variant="tonal" prepend-icon="mdi-account-plus" @click="dialog = true"
                             class="text-none" size="default">
                             Cliente
@@ -27,18 +20,7 @@
                     </div>
 
                     <div class="d-flex align-center gap-4">
-                        <v-chip color="primary" variant="tonal" size="small">
-                            <v-icon start size="small">mdi-chart-line</v-icon>
-                            {{ estadisticasVentas.total }}
-                        </v-chip>
-                        <v-chip class="ml-2" color="success" variant="tonal" size="small">
-                            <v-icon start size="small">mdi-account-check</v-icon>
-                            {{ estadisticasVentas.conCliente }}
-                        </v-chip>
-                        <v-chip class="ml-2" color="warning" variant="tonal" size="small">
-                            <v-icon start size="small">mdi-calendar-today</v-icon>
-                            {{ estadisticasVentas.hoy }}
-                        </v-chip>
+
                         <v-chip class="ml-2" color="info" variant="tonal" size="small">
                             {{ formatoMoneda(totalVentas) }}
                         </v-chip>
@@ -47,15 +29,7 @@
 
                 <div class="d-md-none pa-3">
                     <div class="d-flex align-center justify-center gap-4 mb-4">
-                        <v-chip color="primary" variant="tonal" size="x-small">
-                            {{ estadisticasVentas.total }}
-                        </v-chip>
-                        <v-chip color="success" variant="tonal" size="x-small">
-                            {{ estadisticasVentas.conCliente }}
-                        </v-chip>
-                        <v-chip color="warning" variant="tonal" size="x-small">
-                            {{ estadisticasVentas.hoy }}
-                        </v-chip>
+
                         <v-chip color="info" variant="tonal" size="x-small">
                             {{ formatoMoneda(totalVentas) }}
                         </v-chip>
@@ -67,11 +41,6 @@
                                 @click="dialogFiltro = true" class="text-none flex-1" size="small">
                                 Cargar
                             </v-btn>
-                            <v-btn color="success" variant="elevated" prepend-icon="mdi-content-save"
-                                @click="guardarVentas" class="text-none flex-1" size="small"
-                                :disabled="ventasAgregadas.length === 0">
-                                Guardar
-                            </v-btn>
                         </div>
 
                         <div class="d-flex gap-3">
@@ -80,10 +49,7 @@
                                 :disabled="ventasAgregadas.length === 0">
                                 Limpiar
                             </v-btn>
-                            <v-btn color="info" variant="elevated" prepend-icon="mdi-group" @click="agruparVentas"
-                                class="text-none flex-1" size="small" :disabled="ventasAgregadas.length === 0">
-                                Agrupar
-                            </v-btn>
+
                         </div>
 
                         <v-btn color="primary" variant="tonal" prepend-icon="mdi-account-plus" @click="dialog = true"
@@ -137,7 +103,7 @@
                                             :rules="[v => !!v || 'El monto es obligatorio']" variant="outlined"
                                             density="compact" prepend-inner-icon="mdi-currency-usd"
                                             :formatter="formatoMoneda" :min="0" class="ma-0 pa-0 " required
-                                            @focus="handleFocusMonto" />
+                                            @focus="handleFocusMonto" @wheel.prevent />
 
                                         <v-autocomplete v-else-if="campo.tipo === 'cliente'" :label="campo.label"
                                             v-model="nuevaVenta.cliente"
@@ -162,13 +128,16 @@
                                 </template>
                             </draggable>
 
-                            <v-checkbox v-model="generarRetiro" label="Generar Retiro Pendiente" color="primary"
-                                class="mt-0"></v-checkbox>
 
 
-                            <v-btn color="primary" size="large" block class="mt-6 text-none" prepend-icon="mdi-plus"
+
+                            <v-btn :color="ventaEditandoId ? 'warning' : 'primary'" size="large" block class="mt-6 text-none" :prepend-icon="ventaEditandoId ? 'mdi-pencil' : 'mdi-plus'"
                                 @click="registrarVenta" :loading="registrando">
-                                Registrar Venta
+                                {{ ventaEditandoId ? 'Actualizar Venta' : 'Registrar Venta' }}
+                            </v-btn>
+                            <v-btn v-if="ventaEditandoId" variant="outlined" block class="mt-2 text-none" prepend-icon="mdi-close"
+                                @click="cancelarEdicion">
+                                Cancelar Edición
                             </v-btn>
                         </v-form>
                     </v-card-text>
@@ -335,52 +304,6 @@
             </v-col>
         </v-row>
 
-        <v-row class="mt-4 mt-md-4" v-if="resumenVentas.length > 0">
-            <v-col cols="12">
-                <v-card elevation="3">
-                    <v-card-title class="d-flex align-center pa-4 pa-md-6 pb-4">
-                        <v-icon color="info" size="24" size-md="28" class="mr-2 mr-md-3">mdi-chart-pie</v-icon>
-                        <span class="text-subtitle-1 text-md-h6 font-weight-medium">Resumen por Cliente</span>
-                    </v-card-title>
-                    <v-card-text class="">
-                        <v-expansion-panels variant="accordion">
-                            <v-expansion-panel v-for="(resumen, index) in resumenVentas" :key="index" class="mb-3">
-                                <v-expansion-panel-title class="pa-4">
-                                    <div class="d-flex align-center justify-space-between w-full">
-                                        <div class="d-flex align-center">
-                                            <v-avatar color="info" size="32" variant="tonal" class="mr-3">
-                                                <v-icon size="small">mdi-account</v-icon>
-                                            </v-avatar>
-                                            <span class="mr-2 text-h6">{{ resumen.cliente }}</span>
-                                        </div>
-                                        <div class="d-flex align-center">
-                                            <span class="text-h6 font-weight-bold text-success mr-4">
-                                                {{ formatoMoneda(resumen.total) }}
-                                            </span>
-                                            <v-chip color="info" size="small" variant="tonal">
-                                                {{ resumen.ventas.length }} ventas
-                                            </v-chip>
-                                        </div>
-                                    </div>
-                                </v-expansion-panel-title>
-
-                                <v-expansion-panel-text class="pa-4 pt-0">
-                                    <v-textarea v-model="resumen.texto" label="Mensaje para el cliente" auto-grow
-                                        variant="outlined" rows="8" class="mb-4" />
-                                    <div class="d-flex justify-end">
-                                        <v-btn color="primary" variant="elevated" prepend-icon="mdi-content-copy"
-                                            @click="copiarTexto(resumen.texto)" class="text-none">
-                                            Copiar Mensaje
-                                        </v-btn>
-                                    </div>
-                                </v-expansion-panel-text>
-                            </v-expansion-panel>
-                        </v-expansion-panels>
-                    </v-card-text>
-                </v-card>
-            </v-col>
-        </v-row>
-
         <v-snackbar v-model="snackbar" :timeout="3000" color="success" location="top" class="text-none">
             <div class="d-flex align-center">
                 <v-icon class="mr-3">mdi-check-circle</v-icon>
@@ -477,23 +400,18 @@
         estadoPago?: string
     }
 
-    interface Resumen {
-        cliente: string
-        total: number
-        ventas: Venta[]
-        texto: string
-    }
+
 
     // Configuración de la aplicación
     // Store y estado
     const clientesStore = useClientesStore()
     const registrando = ref(false)
     // const retirosStore = useRetirosStore();
-    const generarRetiro = ref(true); // Variable para el checkbox
+
+    const ventaEditandoId = ref<string | null>(null); // ID de la venta en edición
 
     // Estado reactivo
     const ventasAgregadas = ref<Venta[]>([])
-    const resumenVentas = ref<Resumen[]>([])
     const nuevaVenta = reactive<Venta>({ codigo: '', monto: null, cliente: '', tipo: 'Venta Diaria', fecha: '', modoPago: '' })
 
     // Opciones de modo de pago
@@ -530,32 +448,19 @@
         return ventasAgregadas.value.reduce((acc, venta) => acc + (venta.monto || 0), 0)
     })
 
-    const ventasConCliente = computed(() => {
-        return ventasAgregadas.value.filter(venta => venta.cliente && venta.cliente.trim() !== '')
-    })
+
 
     const esVentaDeHoy = (fecha?: string) => {
         if (!fecha) return false
         const hoy = new Date().toDateString()
-        const fechaVenta = new Date(fecha).toDateString()
-        return hoy === fechaVenta
+        // Si la fecha viene como YYYY-MM-DD, la parseamos como local para comparar strings de fecha
+        const d = typeof fecha === 'string' && !fecha.includes('T') && fecha.length === 10
+            ? new Date(fecha.replace(/-/g, '/')) // Formato YYYY/MM/DD es tratado como local por JS
+            : new Date(fecha)
+        return hoy === d.toDateString()
     }
 
-    const estadisticasVentas = computed(() => {
-        const ventasHoy = ventasAgregadas.value.filter(v => esVentaDeHoy(v.fecha))
-        const ventasAnteriores = ventasAgregadas.value.filter(v => !esVentaDeHoy(v.fecha))
-        const ventasHoyConCliente = ventasHoy.filter(v => v.cliente && v.cliente.trim() !== '')
-        const ventasAnterioresConCliente = ventasAnteriores.filter(v => v.cliente && v.cliente.trim() !== '')
 
-        return {
-            total: ventasAgregadas.value.length,
-            conCliente: ventasConCliente.value.length,
-            hoy: ventasHoy.length,
-            hoyConCliente: ventasHoyConCliente.length,
-            anteriores: ventasAnteriores.length,
-            anterioresConCliente: ventasAnterioresConCliente.length
-        }
-    })
 
     // Ventas filtradas por tipo seleccionado
     const ventasFiltradas = computed(() => {
@@ -604,7 +509,17 @@
 
     function formatFecha(fecha?: string | Date) {
         if (!fecha) return ''
-        const d = typeof fecha === 'string' ? new Date(fecha) : fecha
+        let d: Date
+        if (typeof fecha === 'string') {
+            // Si es YYYY-MM-DD (10 chars), forzar local reemplazando - por /
+            if (fecha.length === 10 && !fecha.includes('T')) {
+                d = new Date(fecha.replace(/-/g, '/'))
+            } else {
+                d = new Date(fecha)
+            }
+        } else {
+            d = fecha
+        }
         return d.toLocaleDateString('es-CL', { year: 'numeric', month: '2-digit', day: '2-digit' })
     }
 
@@ -695,93 +610,114 @@
 
         registrando.value = true
         try {
-            ventasAgregadas.value.unshift({
-                ...nuevaVenta,
-                tipo: tipoSeleccionado.value,
-                fecha: new Date().toISOString(),
-                guardada: false
-            })
+            let clienteId = null;
+            if (nuevaVenta.cliente && nuevaVenta.cliente !== 'Cliente desconocido') {
+                const c = clientesStore.clientes.find(c => c.nombre === nuevaVenta.cliente);
+                if (c) clienteId = c.id;
+            }
+
+            const ventaData = {
+                codigo: nuevaVenta.codigo,
+                monto: nuevaVenta.monto,
+                cliente_id: clienteId,
+                tipo: 'Venta Diaria',
+                modo_pago: nuevaVenta.modoPago || null,
+            };
+
+            if (ventaEditandoId.value) {
+                // ACTUALIZAR venta existente
+                const { error } = await supabase.from('ventas').update(ventaData).eq('id', ventaEditandoId.value);
+                if (error) throw error;
+
+                // Actualizar en el array local
+                const idx = ventasAgregadas.value.findIndex(v => v.id === ventaEditandoId.value);
+                if (idx !== -1) {
+                    ventasAgregadas.value[idx] = {
+                        ...ventasAgregadas.value[idx],
+                        codigo: nuevaVenta.codigo,
+                        monto: nuevaVenta.monto,
+                        cliente: nuevaVenta.cliente,
+                        modoPago: nuevaVenta.modoPago,
+                        guardada: true
+                    };
+                }
+                mensajeSnackbar.value = '✅ Venta actualizada correctamente';
+                ventaEditandoId.value = null;
+            } else {
+                // CREAR nueva venta
+                const ventaInsert = { ...ventaData, fecha: new Date().toISOString() };
+                const { data, error } = await supabase.from('ventas').insert([ventaInsert]).select('*, clientes(nombre)');
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    const v = data[0];
+                    ventasAgregadas.value.unshift({
+                        id: v.id,
+                        codigo: v.codigo,
+                        monto: v.monto,
+                        tipo: v.tipo,
+                        fecha: v.fecha,
+                        modoPago: v.modo_pago,
+                        cliente: v.clientes?.nombre || nuevaVenta.cliente || 'Cliente desconocido',
+                        guardada: true
+                    });
+
+
+                }
+                mensajeSnackbar.value = '✅ Venta registrada correctamente';
+            }
+
+            snackbarGuardado.value = true;
             nuevaVenta.codigo = ''
             nuevaVenta.monto = null
             nuevaVenta.cliente = ''
             nuevaVenta.modoPago = ''
+        } catch (err) {
+            console.error('Error guardando venta:', err);
+            mensajeSnackbar.value = '❌ Error al guardar la venta';
+            snackbarGuardado.value = true;
         } finally {
             registrando.value = false
         }
     }
 
-    function editarVenta(index: number) {
-        const c = ventasAgregadas.value[index]
-        nuevaVenta.codigo = c.codigo
-        nuevaVenta.monto = c.monto
-        nuevaVenta.cliente = c.cliente
-        nuevaVenta.modoPago = c.modoPago || ''
-        tipoSeleccionado.value = c.tipo || 'Venta Diaria'
-        ventasAgregadas.value.splice(index, 1)
-    }
-
-    function eliminarVenta(index: number) {
-        ventasAgregadas.value.splice(index, 1)
-    }
-
     function editarVentaFiltrada(ventaAEditar: Venta) {
-        const indexReal = ventasAgregadas.value.findIndex(v => v === ventaAEditar);
+        // Cargar datos en el formulario y guardar el ID para hacer update
+        nuevaVenta.codigo = ventaAEditar.codigo
+        nuevaVenta.monto = ventaAEditar.monto
+        nuevaVenta.cliente = ventaAEditar.cliente
+        nuevaVenta.modoPago = ventaAEditar.modoPago || ''
+        ventaEditandoId.value = ventaAEditar.id || null
+    }
 
-        if (indexReal !== -1) {
-            editarVenta(indexReal)
+    function cancelarEdicion() {
+        ventaEditandoId.value = null
+        nuevaVenta.codigo = ''
+        nuevaVenta.monto = null
+        nuevaVenta.cliente = ''
+        nuevaVenta.modoPago = ''
+    }
+
+    async function eliminarVentaFiltrada(ventaAEliminar: Venta) {
+        if (!confirm('¿Estás seguro de eliminar esta venta?')) return;
+
+        try {
+            if (ventaAEliminar.id) {
+                const { error } = await supabase.from('ventas').delete().eq('id', ventaAEliminar.id);
+                if (error) throw error;
+            }
+            const idx = ventasAgregadas.value.findIndex(v => v === ventaAEliminar);
+            if (idx !== -1) ventasAgregadas.value.splice(idx, 1);
+            mensajeSnackbar.value = '✅ Venta eliminada correctamente';
+            snackbarGuardado.value = true;
+        } catch (err) {
+            console.error('Error eliminando venta:', err);
+            mensajeSnackbar.value = '❌ Error al eliminar la venta';
+            snackbarGuardado.value = true;
         }
     }
 
-    function eliminarVentaFiltrada(ventaAEliminar: Venta) {
-        const indexReal = ventasAgregadas.value.findIndex(v => v === ventaAEliminar);
 
-        if (indexReal !== -1) {
-            eliminarVenta(indexReal)
-        }
-    }
-
-    function agruparVentas() {
-        const grupos: Record<string, Venta[]> = {}
-        ventasAgregadas.value.forEach((c) => {
-            const cliente = c.cliente || 'Cliente desconocido'
-            if (!grupos[cliente]) grupos[cliente] = []
-            grupos[cliente].push(c)
-        })
-
-        resumenVentas.value = Object.entries(grupos).map(([cliente, ventas]) => {
-            const total = ventas.reduce((acc, c) => acc + (c.monto || 0), 0)
-            const detalle = ventas.map(c => {
-                const modoPagoInfo = c.modoPago ? `, Pago: ${getModoPagoText(c.modoPago)}` : ''
-                return `- Código: ${c.codigo}, Monto: ${formatoMoneda(c.monto || 0)}${modoPagoInfo}`
-            }).join('\n')
-            const texto = `Estimado(a) ${cliente},
-
-Este es el detalle de sus compras:
-
-${detalle}
-
-TOTAL: ${formatoMoneda(total)}
-
-Por favor transferir a la siguiente cuenta: 
-Nombre: Alicia Yolhet Arias Cea
-Banco: Mercado Pago
-Tipo de Cuenta: Vista
-N° de cuenta: 1038060282
-Rut: 10376458-0
-
-¡¡Gracias!! 😊
-Equipo de Menaje House`
-            return { cliente, total, ventas, texto }
-        })
-
-        snackbar.value = true
-    }
-
-    function copiarTexto(texto: string) {
-        navigator.clipboard.writeText(texto).then(() => {
-            alert('Texto copiado al portapapeles ✅')
-        })
-    }
 
     function cerrarDialog() {
         dialog.value = false
@@ -799,75 +735,6 @@ Equipo de Menaje House`
 
     function limpiarVentas() {
         ventasAgregadas.value = []
-        resumenVentas.value = []
-    }
-
-    // Guardar ventas en Supabase con UPSERT (actualizar existentes o crear nuevas)
-    async function guardarVentas() {
-        registrando.value = true;
-        try {
-            for (const venta of ventasAgregadas.value) {
-                let clienteId = null;
-                if (venta.cliente && venta.cliente !== "Cliente desconocido") {
-                    const c = clientesStore.clientes.find(c => c.nombre === venta.cliente);
-                    if (c) clienteId = c.id;
-                }
-
-                const ventaData = {
-                    codigo: venta.codigo,
-                    monto: venta.monto,
-                    cliente_id: clienteId,
-                    tipo: venta.tipo || 'Venta Diaria',
-                    fecha: venta.fecha || new Date().toISOString(),
-                    modo_pago: venta.modoPago || null,
-                };
-
-                let ventaId = venta.id;
-                const esVentaNueva = !venta.id;
-
-                if (venta.id) {
-                    // ACTUALIZAR venta existente
-                    const { error } = await supabase.from('ventas').update(ventaData).eq('id', venta.id);
-                    if (error) throw error;
-                    venta.guardada = true;
-                    console.log(`✏️ Venta actualizada: ${venta.id}`);
-                } else {
-                    // CREAR nueva venta
-                    const { data, error } = await supabase.from('ventas').insert([ventaData]).select();
-                    if (error) throw error;
-                    if (data && data.length > 0) {
-                        ventaId = data[0].id;
-                        venta.id = ventaId;
-                    }
-                    venta.guardada = true;
-                    console.log(`✅ Venta nueva creada: ${ventaId}`);
-                }
-
-                // Si el checkbox de retiro está marcado y es una venta NUEVA
-                if (generarRetiro.value && esVentaNueva && ventaId) {
-                    const retiroData = {
-                        venta_id: ventaId,
-                        cliente_id: clienteId,
-                        monto: venta.monto,
-                        estado: 'pendiente',
-                        fecha: new Date().toISOString()
-                    };
-
-                    const { error: retiroError } = await supabase.from('retiros').insert([retiroData]);
-                    if (retiroError) throw retiroError;
-                    
-                    console.log(`✅ Retiro creado para venta: ${ventaId}`);
-                }
-            }
-            mensajeSnackbar.value = "✅ Ventas guardadas/actualizadas correctamente";
-            snackbarGuardado.value = true;
-        } catch (err) {
-            console.error("Error guardando ventas:", err);
-            mensajeSnackbar.value = "❌ Ocurrió un error al guardar ventas";
-            snackbarGuardado.value = true;
-        } finally {
-            registrando.value = false;
-        }
     }
 
 

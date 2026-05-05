@@ -5,12 +5,15 @@ interface Venta {
     id?: string
     codigo: string
     monto: number
-    cliente_id?: string // Renombrado a cliente_id para coincidir con SQL
-    cliente?: string // Mantener compatibilidad temporal para el frontend si se usaba
+    cliente_id?: string
+    cliente?: string
     tipo?: string
     fecha?: string
-    modo_pago?: string // Renombrado a modo_pago para coincidir con SQL
-    modoPago?: string // Mantener compatibilidad temporal
+    modo_pago?: string
+    modoPago?: string
+    estado_pago?: string
+    fecha_pago?: string
+    usuario_pago?: string
 }
 
 export const useVentasStore = defineStore('ventas', {
@@ -27,19 +30,20 @@ export const useVentasStore = defineStore('ventas', {
             this.ventas = data.map(v => ({
                 id: v.id,
                 codigo: v.codigo,
-                monto: v.monto,
+                monto: Number(v.monto) || 0,
                 cliente_id: v.cliente_id,
                 tipo: v.tipo,
                 fecha: v.fecha,
                 modo_pago: v.modo_pago,
-                // Mapear a variables camelCase para retrocompatibilidad en componentes
+                estado_pago: v.estado_pago,
+                fecha_pago: v.fecha_pago,
+                usuario_pago: v.usuario_pago,
                 cliente: v.cliente_id, 
                 modoPago: v.modo_pago 
             })) as Venta[]
         },
 
         async agregarVenta(venta: Venta) {
-            // Preparar datos para BD (snake_case)
             const ventaToInsert = {
                 codigo: venta.codigo,
                 monto: venta.monto,
@@ -84,7 +88,6 @@ export const useVentasStore = defineStore('ventas', {
         },
 
         async actualizarVenta(id: string, updateData: Partial<Venta>) {
-            // Mapeo seguro a snake_case para la base de datos
             const dataToUpdate: any = { ...updateData }
             if (dataToUpdate.cliente) {
                 dataToUpdate.cliente_id = dataToUpdate.cliente
@@ -129,18 +132,17 @@ export const useVentasStore = defineStore('ventas', {
 
                 data.forEach((venta: any) => {
                     const fecha = new Date(venta.fecha);
-                    const mes = fecha.getMonth(); // 0 = Enero, 1 = Febrero, etc.
+                    const mes = fecha.getMonth();
                     ventasPorMes[mes] = (ventasPorMes[mes] || 0) + Number(venta.monto);
                 });
 
-                return ventasPorMes; // Retorna los datos agregados
+                return ventasPorMes;
             } catch (error) {
                 console.error("Error al cargar ventas mensuales:", error);
                 return {};
             }
         },
         
-        // Acción para cargar ventas del día actual (ideal para Ventas.vue)
         async cargarVentasDelDia() {
             const hoy = new Date();
             const inicioDelDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).toISOString();
@@ -159,16 +161,17 @@ export const useVentasStore = defineStore('ventas', {
             this.ventas = data.map((v: any) => ({
                 id: v.id,
                 ...v,
+                monto: Number(v.monto) || 0,
                 cliente: v.cliente_id,
-                modoPago: v.modo_pago
+                modoPago: v.modo_pago,
+                estado_pago: v.estado_pago,
+                fecha_pago: v.fecha_pago,
+                usuario_pago: v.usuario_pago
             })) as Venta[];
         },
 
-        // Nueva acción para cargar todas las ventas (ideal para una nueva vista de historial)
         async cargarTodasLasVentas() {
             try {
-                console.log('🔄 VentasStore: Iniciando carga de todas las ventas...');
-
                 const { data, error } = await supabase
                     .from('ventas')
                     .select('*')
@@ -176,32 +179,66 @@ export const useVentasStore = defineStore('ventas', {
 
                 if (error) throw error
 
-                console.log('📊 VentasStore: Documentos obtenidos:', data.length);
-
                 this.ventas = data.map((v: any) => ({
                     id: v.id,
                     ...v,
+                    monto: Number(v.monto) || 0,
                     cliente: v.cliente_id,
-                    modoPago: v.modo_pago
+                    modoPago: v.modo_pago,
+                    estado_pago: v.estado_pago,
+                    fecha_pago: v.fecha_pago,
+                    usuario_pago: v.usuario_pago
                 })) as Venta[];
 
-                console.log('✅ VentasStore: Ventas cargadas exitosamente:', this.ventas.length);
-
             } catch (error) {
-                console.error('❌ VentasStore: Error al cargar todas las ventas:', error);
-
-                // Manejo seguro del error para TypeScript
-                const errorDetails = error instanceof Error ? {
-                    message: error.message,
-                    stack: error.stack
-                } : {
-                    message: String(error),
-                    stack: 'No disponible'
-                };
-
-                console.error('❌ Detalles del error:', errorDetails);
-                throw error; // Re-lanzar el error para que lo maneje el componente
+                console.error('Error al cargar todas las ventas:', error);
+                throw error;
             }
+        },
+        
+        async cargarVentasDelMes() {
+            console.log('📊 Cargando ventas del mes...');
+            const hoy = new Date();
+            const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString();
+            const finMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59, 999).toISOString();
+
+            const { data, error } = await supabase
+                .from('ventas')
+                .select('*')
+                .gte('fecha', inicioMes)
+                .lte('fecha', finMes)
+                .order('fecha', { ascending: false })
+
+            if (error) {
+                console.error("Error cargando ventas del mes:", error)
+                return
+            }
+
+            this.ventas = data.map((v: any) => ({
+                id: v.id,
+                ...v,
+                monto: Number(v.monto) || 0,
+                cliente: v.cliente_id,
+                modoPago: v.modo_pago,
+                estado_pago: v.estado_pago,
+                fecha_pago: v.fecha_pago,
+                usuario_pago: v.usuario_pago
+            })) as Venta[];
+            console.log(`✅ ${this.ventas.length} ventas del mes cargadas.`);
+        },
+
+        async vaciarVentas() {
+            const { error } = await supabase
+                .from('ventas')
+                .delete()
+                .neq('id', '00000000-0000-0000-0000-000000000000') // Truco para borrar todo en Supabase sin filtro exacto
+
+            if (error) {
+                console.error("Error al vaciar ventas:", error)
+                throw error
+            }
+
+            this.ventas = []
         },
     }
 })

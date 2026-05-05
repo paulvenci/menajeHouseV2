@@ -128,7 +128,7 @@
                                             :rules="[v => !!v || 'El monto es obligatorio']" variant="outlined"
                                             density="compact" prepend-inner-icon="mdi-currency-usd"
                                             :formatter="formatoMoneda" :min="0" class="ma-0 pa-0 " required
-                                            @focus="handleFocusMonto" />
+                                            @focus="handleFocusMonto" @wheel.prevent />
 
                                         <v-autocomplete v-else-if="campo.tipo === 'cliente'" :label="campo.label"
                                             v-model="nuevaVenta.cliente"
@@ -535,8 +535,11 @@
     const esVentaDeHoy = (fecha?: string) => {
         if (!fecha) return false
         const hoy = new Date().toDateString()
-        const fechaVenta = new Date(fecha).toDateString()
-        return hoy === fechaVenta
+        // Si la fecha viene como YYYY-MM-DD, la parseamos como local para comparar strings de fecha
+        const d = typeof fecha === 'string' && !fecha.includes('T') && fecha.length === 10
+            ? new Date(fecha.replace(/-/g, '/')) // Formato YYYY/MM/DD es tratado como local por JS
+            : new Date(fecha)
+        return hoy === d.toDateString()
     }
 
     const estadisticasVentas = computed(() => {
@@ -602,7 +605,17 @@
 
     function formatFecha(fecha?: string | Date) {
         if (!fecha) return ''
-        const d = typeof fecha === 'string' ? new Date(fecha) : fecha
+        let d: Date
+        if (typeof fecha === 'string') {
+            // Si es YYYY-MM-DD (10 chars), forzar local reemplazando - por /
+            if (fecha.length === 10 && !fecha.includes('T')) {
+                d = new Date(fecha.replace(/-/g, '/'))
+            } else {
+                d = new Date(fecha)
+            }
+        } else {
+            d = fecha
+        }
         return d.toLocaleDateString('es-CL', { year: 'numeric', month: '2-digit', day: '2-digit' })
     }
 

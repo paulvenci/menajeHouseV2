@@ -95,7 +95,7 @@
                     </v-card-item>
                     <v-card-text>
                         <div style="height: 300px;">
-                            <Pie :data="chartData" :options="chartOptions" />
+                            <Pie ref="pieChartRef" :data="chartData" :options="chartOptions" />
                         </div>
                     </v-card-text>
                 </v-card>
@@ -178,7 +178,7 @@
                                 <span>{{ item.codigo }}</span>
                             </template>
                             <template v-slot:item.monto="{ item }">
-                                <span>${{ item.monto.toLocaleString('es-CL') }}</span>
+                                <span>${{ (item.monto || 0).toLocaleString('es-CL') }}</span>
                             </template>
                         </v-data-table>
                     </v-card-text>
@@ -189,7 +189,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useVentasStore } from '../stores/ventasStores';
 import { Pie } from 'vue-chartjs';
 import { Chart as ChartJS, Title, Tooltip, Legend, ArcElement, CategoryScale, LinearScale } from 'chart.js';
@@ -204,6 +204,7 @@ const loading = ref(true);
 const selectedClient = ref('Todos');
 const selectedPeriod = ref('Todo el período');
 const error = ref(null);
+const pieChartRef = ref(null);
 const debugInfo = ref({
     ventasCount: 0,
     loadingStarted: false,
@@ -235,7 +236,7 @@ const periodOptions = [
 const stats = computed(() => {
     const ventas = ventasStore.ventas;
     const totalCompras = ventas.length;
-    const montoTotal = ventas.reduce((sum, v) => sum + v.monto, 0);
+    const montoTotal = ventas.reduce((sum, v) => sum + (Number(v.monto) || 0), 0);
     const promedioCompra = totalCompras > 0 ? montoTotal / totalCompras : 0;
     const numeroClientes = new Set(ventas.map(v => v.cliente).filter(Boolean)).size;
 
@@ -291,7 +292,7 @@ const filteredVentas = computed(() => {
 const filteredStats = computed(() => {
     const ventas = filteredVentas.value;
     const totalCompras = ventas.length;
-    const montoTotal = ventas.reduce((sum, v) => sum + v.monto, 0);
+    const montoTotal = ventas.reduce((sum, v) => sum + (Number(v.monto) || 0), 0);
     const promedioCompra = totalCompras > 0 ? montoTotal / totalCompras : 0;
 
     return {
@@ -306,7 +307,7 @@ const chartData = computed(() => {
 
     filteredVentas.value.forEach(venta => {
         if (venta.cliente) {
-            salesByClient[venta.cliente] = (salesByClient[venta.cliente] || 0) + venta.monto;
+            salesByClient[venta.cliente] = (salesByClient[venta.cliente] || 0) + (Number(venta.monto) || 0);
         }
     });
 
@@ -377,8 +378,13 @@ const chartOptions = computed(() => {
 
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleDateString('es-CL', {
+    let d;
+    if (typeof dateString === 'string' && dateString.length === 10 && !dateString.includes('T')) {
+        d = new Date(dateString.replace(/-/g, '/'));
+    } else {
+        d = new Date(dateString);
+    }
+    return d.toLocaleDateString('es-CL', {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit'
@@ -409,6 +415,13 @@ onMounted(async () => {
         debugInfo.value.errorOccurred = true;
     } finally {
         loading.value = false;
+    }
+});
+
+onBeforeUnmount(() => {
+    // Destruir el chart antes de que Vue remueva el DOM
+    if (pieChartRef.value?.chart) {
+        pieChartRef.value.chart.destroy();
     }
 });
 </script>

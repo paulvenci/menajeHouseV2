@@ -11,7 +11,45 @@
         </v-container>
         <PendingWithdrawals :withdrawals="retirosStore.retiros" :loading="loading" />
         <PendingPayments :payments="pendingPayments" :loading="loading" />
-
+ 
+        <v-container fluid class="mt-8">
+            <v-card elevation="2" border="error" variant="outlined" class="bg-red-lighten-5">
+                <v-card-title class="text-error d-flex align-center">
+                    <v-icon class="mr-2">mdi-alert</v-icon>
+                    Zona de Peligro
+                </v-card-title>
+                <v-card-text>
+                    <p class="text-body-2 mb-4">Estas acciones son irreversibles. Ten precaución.</p>
+                    <v-btn color="error" variant="elevated" prepend-icon="mdi-trash-can" @click="confirmarVaciarVentas">
+                        Vaciar Base de Datos de Ventas
+                    </v-btn>
+                </v-card-text>
+            </v-card>
+        </v-container>
+ 
+        <!-- Diálogo de Confirmación para Vaciar Ventas -->
+        <v-dialog v-model="dialogVaciar" max-width="400">
+            <v-card>
+                <v-card-title class="text-h6 bg-error text-white">
+                    ¿Estás absolutamente seguro?
+                </v-card-title>
+                <v-card-text class="pa-4">
+                    Esta acción eliminará <strong>TODAS</strong> las ventas registradas de forma permanente. No se pueden recuperar.
+                </v-card-text>
+                <v-card-actions class="pa-4">
+                    <v-spacer></v-spacer>
+                    <v-btn variant="text" @click="dialogVaciar = false">Cancelar</v-btn>
+                    <v-btn color="error" variant="elevated" @click="ejecutarVaciarVentas" :loading="vaciando">
+                        Sí, eliminar todo
+                    </v-btn>
+                </v-card-actions>
+            </v-card>
+        </v-dialog>
+ 
+        <v-snackbar v-model="snackbarAdmin" :timeout="3000" :color="snackbarColor" location="top">
+            {{ snackbarMsg }}
+        </v-snackbar>
+ 
     </v-main>
 </template>
 
@@ -68,44 +106,62 @@
     // const pendingWithdrawals = ref<Retiro[]>([])
     const pendingPayments = ref<Pago[]>([])
     const loading = ref(true)
+    const dialogVaciar = ref(false)
+    const vaciando = ref(false)
+    const snackbarAdmin = ref(false)
+    const snackbarMsg = ref('')
+    const snackbarColor = ref('success')
 
     let unsubscribeVentas: (() => void) | undefined;
     let unsubscribePagos: (() => void) | undefined;
 
     // Función para obtener el inicio y fin del mes actual
-    const getCurrentMonthRange = () => {
-        const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-        return { startOfMonth, endOfMonth };
-    };
+
 
     // Nos conectamos a Firestore al montar el componente
     onMounted(async () => {
         // --- Estadísticas de Ventas ---
         // TODO: Migrar lógica a Tiempo Real de Supabase (channels) o recargar al montar
         try {
-            await ventasStore.cargarVentasDelDia()
-            // Podrías mapear 'ventasStore.ventas' para sacar statistics básicas.
-            // Para simplificar, confiaremos en los datos que traiga el store:
-            const { startOfMonth, endOfMonth } = getCurrentMonthRange();
+            console.log('📈 Iniciando carga de estadísticas...');
+            
+            // Intentamos cargar todas las ventas para asegurar que tenemos datos para procesar
+            await ventasStore.cargarTodasLasVentas();
+            
+            const hoy = new Date();
+            const mesActual = hoy.getMonth();
+            const anioActual = hoy.getFullYear();
+            
             let total = 0, totalLive = 0, totalDiaria = 0, cantidad = 0;
             
-            // Asumiendo que recargaste todas o usas las de hoy...
+            console.log(`🔍 Analizando ${ventasStore.ventas.length} ventas totales...`);
+
             ventasStore.ventas.forEach(venta => {
                if (venta.fecha) {
+                    // Usamos una aproximación más robusta para el mes
+                    // Si la fecha es "2026-05-04 00:00:00+00", queremos que cuente como Mayo
                     const ventaDate = new Date(venta.fecha);
-                    if (ventaDate >= startOfMonth && ventaDate <= endOfMonth) {
-                        total += venta.monto || 0;
+                    
+                    // Comprobamos si es el mismo mes y año
+                    if (ventaDate.getMonth() === mesActual && ventaDate.getFullYear() === anioActual) {
+                        const monto = Number(venta.monto) || 0;
+                        total += monto;
                         cantidad++;
-                        if (venta.tipo === 'Venta Live') totalLive += venta.monto || 0;
-                        else totalDiaria += venta.monto || 0;
+                        if (venta.tipo === 'Venta Live') totalLive += monto;
+                        else totalDiaria += monto;
                     }
                 }
-            })
-            stats.value = { totalVentas: total, totalVentasLive: totalLive, totalVentasDiarias: totalDiaria, cantidadVentas: cantidad };
+            });
+
+            stats.value = { 
+                totalVentas: total, 
+                totalVentasLive: totalLive, 
+                totalVentasDiarias: totalDiaria, 
+                cantidadVentas: cantidad 
+            };
+            console.log('✅ Estadísticas calculadas para el mes:', stats.value);
         } catch(error) {
-           console.error("Error cargando ventas para estadisticas", error)
+           console.error("❌ Error en Dashboard:", error)
         }
 
 
@@ -144,11 +200,36 @@
 
     })
 
+    function confirmarVaciarVentas() {
+        dialogVaciar.value = true;
+    }
+
+    async function ejecutarVaciarVentas() {
+        vaciando.value = true;
+        try {
+            await ventasStore.vaciarVentas();
+            snackbarMsg.value = '✅ Base de datos de ventas vaciada correctamente';
+            snackbarColor.value = 'success';
+            snackbarAdmin.value = true;
+            dialogVaciar.value = false;
+            
+            // Recargar datos para actualizar la UI
+            await ventasStore.cargarTodasLasVentas();
+            stats.value = { totalVentas: 0, totalVentasLive: 0, totalVentasDiarias: 0, cantidadVentas: 0 };
+            monthlySales.value = {};
+        } catch (error) {
+            console.error('Error al vaciar ventas:', error);
+            snackbarMsg.value = '❌ Error al vaciar la base de datos';
+            snackbarColor.value = 'error';
+            snackbarAdmin.value = true;
+        } finally {
+            vaciando.value = false;
+        }
+    }
+
     // Limpiamos los listeners al desmontar para evitar fugas de memoria
     onUnmounted(() => {
         unsubscribeVentas?.();
-        // Ya no necesitas desuscribirte de retiros si usas la acción 'cargarRetirosDelMes'
-        // unsubscribeRetiros?.();
         unsubscribePagos?.();
     });
 </script>
