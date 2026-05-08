@@ -25,6 +25,9 @@
     const snackbarMessage = ref('');
     const snackbarColor = ref('success');
 
+    const busquedaCliente = ref('');
+    const filtroFecha = ref('');
+
     const retiroData = ref({
         retiradoPor: '',
         fechaRetiro: new Date().toISOString().split('T')[0]
@@ -45,7 +48,24 @@
 
     // Ordenar los retiros por fecha y cliente
     const sortedWithdrawals = computed(() => {
-        return [...props.withdrawals].sort((a, b) => {
+        // Filtrar clientes desconocidos y nulos + Filtros de búsqueda
+        const filtered = props.withdrawals.filter(w => {
+            const nombre = w.clienteNombre?.toLowerCase() || '';
+            const esConocido = nombre && 
+                              nombre !== 'cliente desconocido' && 
+                              nombre !== 'desconocido' &&
+                              nombre !== 'n/a';
+            
+            const coincideCliente = !busquedaCliente.value || 
+                w.clienteNombre?.toLowerCase().includes(busquedaCliente.value.toLowerCase());
+            
+            const coincideFecha = !filtroFecha.value || 
+                w.fecha?.startsWith(filtroFecha.value);
+            
+            return esConocido && coincideCliente && coincideFecha;
+        });
+
+        return [...filtered].sort((a, b) => {
             const dateA = new Date(a.fecha).getTime();
             const dateB = new Date(b.fecha).getTime();
             if (dateA !== dateB) {
@@ -145,24 +165,45 @@
     /* Transición suave solo para el color */
 }
 
-/* Opcional: Estilo para las filas al hacer clic */
-.v-data-table.hover-effect :deep(.v-data-table__tr.v-data-table__tr--active) {
-    background-color: #e0e0e0;
-    /* Color al seleccionar la fila */
+.cursor-pointer {
+    cursor: pointer;
+}
+.max-width-200 {
+    max-width: 200px;
+}
+.gap-2 {
+    gap: 8px;
 }
 </style>
 <template>
     <v-container fluid>
         <v-card elevation="2">
-            <v-card-title class="d-flex align-center">
-                Listado de Retiros del Mes
+            <v-card-title class="d-flex align-center pa-4 pa-md-6 pb-2">
+                <v-icon color="deep-purple" size="24" class="mr-2">mdi-package-variant-closed</v-icon>
+                <span class="text-subtitle-1 text-md-h6 font-weight-medium">Listado de Retiros del Mes</span>
                 <v-spacer></v-spacer>
                 <v-btn color="primary" variant="text" prepend-icon="mdi-refresh"
-                    @click="retirosStore.cargarRetirosDelMes()">
+                    @click="retirosStore.cargarRetirosDelMes()" size="small">
                     Actualizar
                 </v-btn>
             </v-card-title>
-            <v-card-text>
+
+            <v-card-text class="px-4 px-md-6 pb-2">
+                <v-row dense>
+                    <v-col cols="12" sm="6" md="4">
+                        <v-text-field v-model="busquedaCliente" label="Buscar por cliente..."
+                            prepend-inner-icon="mdi-account-search" variant="outlined" density="comfortable"
+                            hide-details clearable class="bg-white"></v-text-field>
+                    </v-col>
+                    <v-col cols="12" sm="6" md="4">
+                        <v-text-field v-model="filtroFecha" type="date" label="Filtrar por fecha de venta"
+                            prepend-inner-icon="mdi-calendar" variant="outlined" density="comfortable" hide-details
+                            clearable class="bg-white"></v-text-field>
+                    </v-col>
+                </v-row>
+            </v-card-text>
+
+            <v-card-text class="pa-4 pa-md-6 pt-2">
                 <!-- Barra de acciones para selección múltiple -->
                 <v-expand-transition>
                     <v-alert v-if="seleccionados.length > 0" type="info" variant="tonal" class="mb-4">
@@ -183,7 +224,20 @@
 
                 <v-data-table v-model="seleccionados" :headers="headers" :items="sortedWithdrawals" :loading="loading"
                     no-data-text="No hay retiros registrados este mes" class="elevation-1 hover-effect" item-key="id"
-                    show-select item-value="id" @click:row="(_: any, { item }: { item: Retiro }) => openDialog(item)">
+                    show-select item-value="id" @click:row="(_: any, { item }: { item: Retiro }) => openDialog(item)"
+                    :group-by="[{ key: 'clienteNombre', order: 'asc' }]">
+                    
+                    <template v-slot:group-header="{ item, columns, toggleGroup, isGroupOpen }">
+                        <tr class="bg-grey-lighten-4 cursor-pointer" @click="toggleGroup(item)">
+                            <td :colspan="columns.length">
+                                <v-btn :icon="isGroupOpen(item) ? 'mdi-chevron-down' : 'mdi-chevron-right'"
+                                    variant="text" size="small"></v-btn>
+                                <span class="font-weight-bold">{{ item.value }}</span>
+                                <span class="ml-4 font-weight-bold text-deep-purple">Total: ${{ item.items.reduce((acc, i) => acc + (i.raw.monto || 0), 0).toLocaleString('es-CL') }}</span>
+                                <span class="ml-4 text-grey">({{ item.items.length }} retiros)</span>
+                            </td>
+                        </tr>
+                    </template>
                     <template v-slot:item.fecha="{ item }">
                         {{ new Date(item.fecha).toLocaleDateString('es-CL', {
                             day: '2-digit',

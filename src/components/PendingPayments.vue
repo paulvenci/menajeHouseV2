@@ -1,15 +1,31 @@
 <template>
     <v-container fluid>
         <v-card elevation="2">
-            <v-card-title class="d-flex align-center pa-4 pa-md-6 pb-4">
+            <v-card-title class="d-flex align-center pa-4 pa-md-6 pb-2">
                 <v-icon color="warning" size="24" size-md="28" class="mr-2 mr-md-3">mdi-cash-clock</v-icon>
                 <span class="text-subtitle-1 text-md-h6 font-weight-medium">Pagos Pendientes</span>
                 <v-spacer></v-spacer>
-                <v-chip color="warning" variant="tonal">
-                    {{ ventasPendientes.length }} pendientes
+                <v-chip color="warning" variant="tonal" size="small">
+                    {{ ventasPendientesFiltradas.length }} pendientes
                 </v-chip>
             </v-card-title>
-            <v-card-text>
+
+            <v-card-text class="px-4 px-md-6 pb-2">
+                <v-row dense>
+                    <v-col cols="12" sm="6" md="4">
+                        <v-text-field v-model="busquedaCliente" label="Buscar por cliente..."
+                            prepend-inner-icon="mdi-account-search" variant="outlined" density="comfortable"
+                            hide-details clearable class="bg-white"></v-text-field>
+                    </v-col>
+                    <v-col cols="12" sm="6" md="4">
+                        <v-text-field v-model="filtroFecha" type="date" label="Filtrar por fecha de venta"
+                            prepend-inner-icon="mdi-calendar" variant="outlined" density="comfortable" hide-details
+                            clearable class="bg-white"></v-text-field>
+                    </v-col>
+                </v-row>
+            </v-card-text>
+
+            <v-card-text class="pa-4 pa-md-6 pt-2">
                 <!-- Barra de acciones para selección múltiple -->
                 <v-expand-transition>
                     <v-alert v-if="seleccionados.length > 0" type="info" variant="tonal" class="mb-4">
@@ -28,9 +44,21 @@
                     </v-alert>
                 </v-expand-transition>
 
-                <v-data-table v-model="seleccionados" :headers="headers" :items="ventasPendientes" :loading="loading"
+                <v-data-table v-model="seleccionados" :headers="headers" :items="ventasPendientesFiltradas" :loading="loading"
                     no-data-text="No hay pagos pendientes" items-per-page-text="Ventas por página" show-select
-                    item-value="id" class="elevation-1">
+                    item-value="id" class="elevation-1" :group-by="[{ key: 'cliente', order: 'asc' }]">
+
+                    <template v-slot:group-header="{ item, columns, toggleGroup, isGroupOpen }">
+                        <tr class="bg-grey-lighten-4 cursor-pointer" @click="toggleGroup(item)">
+                            <td :colspan="columns.length">
+                                <v-btn :icon="isGroupOpen(item) ? 'mdi-chevron-down' : 'mdi-chevron-right'"
+                                    variant="text" size="small"></v-btn>
+                                <span class="font-weight-bold">{{ item.value }}</span>
+                                <span class="ml-4 text-error font-weight-bold">Total: {{ formatoMoneda(item.items.reduce((acc, i) => acc + (i.raw.monto || 0), 0)) }}</span>
+                                <span class="ml-4 text-grey">({{ item.items.length }} ventas)</span>
+                            </td>
+                        </tr>
+                    </template>
 
                     <template v-slot:item.codigo="{ item }">
                         <span class="font-weight-bold">{{ item.codigo }}</span>
@@ -176,7 +204,7 @@
 
 <script setup
     lang="ts">
-    import { ref, onMounted } from 'vue';
+    import { ref, onMounted, computed } from 'vue';
     import { supabase } from '../supabase';
 
     interface Venta {
@@ -200,6 +228,21 @@
     const snackbar = ref(false);
     const snackbarMessage = ref('');
     const snackbarColor = ref('success');
+
+    const busquedaCliente = ref('');
+    const filtroFecha = ref('');
+
+    const ventasPendientesFiltradas = computed(() => {
+        return ventasPendientes.value.filter(v => {
+            const coincideCliente = !busquedaCliente.value || 
+                v.cliente?.toLowerCase().includes(busquedaCliente.value.toLowerCase());
+            
+            const coincideFecha = !filtroFecha.value || 
+                v.fecha?.startsWith(filtroFecha.value);
+            
+            return coincideCliente && coincideFecha;
+        });
+    });
 
     const pagoData = ref({
         modoPago: '',
@@ -234,16 +277,25 @@
 
             ventasPendientes.value = [];
             data.forEach((v: any) => {
-                ventasPendientes.value.push({
-                    id: v.id,
-                    codigo: v.codigo,
-                    monto: v.monto,
-                    cliente: v.clientes?.nombre || v.cliente_id || 'Cliente desconocido',
-                    tipo: v.tipo,
-                    fecha: v.fecha,
-                    estadoPago: v.estado_pago,
-                    modoPago: v.modo_pago
-                } as Venta);
+                const clienteNombre = v.clientes?.nombre || v.cliente_id || 'Cliente desconocido';
+                const nombreNormalizado = clienteNombre.toString().toLowerCase();
+                
+                // Solo agregar si el cliente es conocido
+                if (nombreNormalizado && 
+                    nombreNormalizado !== 'cliente desconocido' && 
+                    nombreNormalizado !== 'desconocido' &&
+                    nombreNormalizado !== 'n/a') {
+                    ventasPendientes.value.push({
+                        id: v.id,
+                        codigo: v.codigo,
+                        monto: v.monto,
+                        cliente: clienteNombre,
+                        tipo: v.tipo,
+                        fecha: v.fecha,
+                        estadoPago: v.estado_pago,
+                        modoPago: v.modo_pago
+                    } as Venta);
+                }
             });
 
             console.log(`✅ Cargadas ${ventasPendientes.value.length} ventas pendientes de pago`);
@@ -387,3 +439,15 @@
             .reduce((total, v) => total + (v.monto || 0), 0);
     }
 </script>
+
+<style scoped>
+.cursor-pointer {
+    cursor: pointer;
+}
+.max-width-200 {
+    max-width: 200px;
+}
+.gap-2 {
+    gap: 8px;
+}
+</style>

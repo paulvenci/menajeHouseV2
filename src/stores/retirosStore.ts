@@ -31,36 +31,44 @@ export const useRetirosStore = defineStore('retiros', {
                 const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
                 const ultimoDiaMes = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0);
 
-                // Consulta a Supabase con Joins (Relaciones)
+                // Consulta a Supabase: Traer todos los PENDIENTES (sin importar fecha) 
+                // O los completados del mes actual
                 const { data, error } = await supabase
                     .from('retiros')
                     .select(`
                         *,
-                        ventas ( codigo, tipo ),
+                        ventas ( 
+                            codigo, 
+                            tipo,
+                            clientes ( nombre )
+                        ),
                         clientes ( nombre )
                     `)
-                    .gte('fecha', primerDiaMes.toISOString())
-                    .lte('fecha', ultimoDiaMes.toISOString())
-                    .order('fecha');
+                    .or(`estado.eq.pendiente,and(fecha.gte.${primerDiaMes.toISOString()},fecha.lte.${ultimoDiaMes.toISOString()})`)
+                    .order('fecha', { ascending: false });
                     
                 if (error) throw error;
                 
                 console.log("Documentos leídos de Supabase:", data);
 
-                const retirosTemp: Retiro[] = data.map((d: any) => ({
-                    id: d.id,
-                    ventaId: d.venta_id,
-                    clienteId: d.cliente_id,
-                    monto: d.monto,
-                    estado: d.estado,
-                    fecha: d.fecha,
-                    retiradoPor: d.retirado_por,
-                    fechaRetiro: d.fecha_retiro,
-                    // Datos traídos con el JOIN
-                    clienteNombre: d.clientes?.nombre || 'Desconocido',
-                    codigoVenta: d.ventas?.codigo || 'N/A',
-                    tipoVenta: d.ventas?.tipo || 'N/A'
-                }));
+                const retirosTemp: Retiro[] = data.map((d: any) => {
+                    // Prioridad: 1. Cliente directo del retiro, 2. Cliente de la venta asociada
+                    const clienteNombre = d.clientes?.nombre || d.ventas?.clientes?.nombre || 'Desconocido';
+                    
+                    return {
+                        id: d.id,
+                        ventaId: d.venta_id,
+                        clienteId: d.cliente_id || d.ventas?.cliente_id,
+                        monto: d.monto,
+                        estado: d.estado,
+                        fecha: d.fecha,
+                        retiradoPor: d.retirado_por,
+                        fechaRetiro: d.fecha_retiro,
+                        clienteNombre: clienteNombre,
+                        codigoVenta: d.ventas?.codigo || 'N/A',
+                        tipoVenta: d.ventas?.tipo || 'N/A'
+                    };
+                });
                 
                 this.retiros = retirosTemp;
 

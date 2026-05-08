@@ -136,26 +136,10 @@
                                             density="compact" prepend-inner-icon="mdi-account" class="ma-0 pa-0"
                                             clearable />
 
-                                        <v-select v-else-if="campo.tipo === 'modoPago'" :label="campo.label"
-                                            v-model="nuevaVenta.modoPago" :items="modosPago" item-title="text"
-                                            item-value="value" variant="outlined" density="compact"
-                                            prepend-inner-icon="mdi-credit-card" clearable>
-                                            <template v-slot:item="{ props, item }">
-                                                <v-list-item v-bind="props">
-                                                    <template v-slot:prepend>
-                                                        <v-icon :icon="item.raw.icon" color="primary"></v-icon>
-                                                    </template>
-                                                    <v-list-item-title>{{ item.raw.text }}</v-list-item-title>
-                                                </v-list-item>
-                                            </template>
-                                        </v-select>
+                                        
                                     </div>
                                 </template>
                             </draggable>
-
-                            <v-checkbox v-model="generarRetiro" label="Generar Retiro Pendiente" color="primary"
-                                class="mt-0"></v-checkbox>
-
 
                             <v-btn :color="ventaEditandoId ? 'warning' : 'primary'" size="large" block class="mt-6 text-none" :prepend-icon="ventaEditandoId ? 'mdi-pencil' : 'mdi-plus'"
                                 @click="registrarVenta" :loading="registrando">
@@ -227,13 +211,22 @@
                                     <v-list-item-title class="font-weight-medium mb-1">
                                         <div class="d-flex align-center justify-space-between">
                                             <span>{{ venta.cliente || 'Cliente desconocido' }}</span>
-                                            <v-chip :color="venta.guardada ? 'success' : 'warning'" size="x-small"
-                                                variant="tonal" class="ml-2">
-                                                <v-icon size="x-small" class="mr-1">
-                                                    {{ venta.guardada ? 'mdi-cloud-check' : 'mdi-cloud-upload' }}
-                                                </v-icon>
-                                                {{ venta.guardada ? 'Guardada' : 'Sin guardar' }}
-                                            </v-chip>
+                                            <div class="d-flex align-center gap-2">
+                                                <v-chip :color="venta.estadoPago === 'pagado' ? 'success' : 'warning'" size="x-small"
+                                                    variant="elevated" class="ml-2">
+                                                    <v-icon size="x-small" class="mr-1">
+                                                        {{ venta.estadoPago === 'pagado' ? 'mdi-cash-check' : 'mdi-cash-clock' }}
+                                                    </v-icon>
+                                                    {{ venta.estadoPago === 'pagado' ? 'Pagado' : 'Pendiente' }}
+                                                </v-chip>
+                                                <v-chip :color="venta.guardada ? 'success' : 'warning'" size="x-small"
+                                                    variant="tonal">
+                                                    <v-icon size="x-small" class="mr-1">
+                                                        {{ venta.guardada ? 'mdi-cloud-check' : 'mdi-cloud-upload' }}
+                                                    </v-icon>
+                                                    {{ venta.guardada ? 'Guardada' : 'Sin guardar' }}
+                                                </v-chip>
+                                            </div>
                                         </div>
                                     </v-list-item-title>
 
@@ -294,15 +287,6 @@
                                                     <span class="text-caption text-grey">
                                                         {{ formatFecha(venta.fecha) }}
                                                     </span>
-                                                </div>
-                                                <div v-if="venta.modoPago"
-                                                    class="d-flex align-center justify-space-between">
-                                                    <v-chip :color="getModoPagoColor(venta.modoPago)" size="x-small"
-                                                        variant="tonal">
-                                                        <v-icon size="x-small" class="mr-1">{{
-                                                            getModoPagoIcon(venta.modoPago) }}</v-icon>
-                                                        {{ getModoPagoText(venta.modoPago) }}
-                                                    </v-chip>
                                                 </div>
                                             </div>
                                         </div>
@@ -469,7 +453,6 @@
         cliente?: string
         tipo?: string
         fecha?: string
-        modoPago?: string
         guardada?: boolean
         estadoPago?: string
     }
@@ -486,20 +469,12 @@
     const clientesStore = useClientesStore()
     const registrando = ref(false)
     // const retirosStore = useRetirosStore();
-    const generarRetiro = ref(true); // Variable para el checkbox
     const ventaEditandoId = ref<string | null>(null); // ID de la venta en edición
 
     // Estado reactivo
     const ventasAgregadas = ref<Venta[]>([])
     const resumenVentas = ref<Resumen[]>([])
-    const nuevaVenta = reactive<Venta>({ codigo: '', monto: null, cliente: '', tipo: 'Venta Live', fecha: '', modoPago: '' })
-
-    // Opciones de modo de pago
-    const modosPago = [
-        { text: 'Transferencia', value: 'transferencia', icon: 'mdi-bank-transfer' },
-        { text: 'Efectivo', value: 'efectivo', icon: 'mdi-cash' },
-        { text: 'Débito/Crédito', value: 'debito-credito', icon: 'mdi-credit-card' }
-    ]
+    const nuevaVenta = reactive<Venta>({ codigo: '', monto: null, cliente: '', tipo: 'Venta Live', fecha: '' })
 
     const dialog = ref(false)
     const nuevoCliente = ref({
@@ -519,19 +494,10 @@
         { id: 'codigo', label: 'Código', tipo: 'codigo' },
         { id: 'monto', label: 'Monto', tipo: 'monto' },
         { id: 'cliente', label: 'Cliente (opcional)', tipo: 'cliente' },
-        { id: 'modoPago', label: 'Modo de Pago (opcional)', tipo: 'modoPago' },
     ])
     const drag = ref(false)
 
     // Computed properties
-    const totalVentas = computed(() => {
-        return ventasAgregadas.value.reduce((acc, venta) => acc + (venta.monto || 0), 0)
-    })
-
-    const ventasConCliente = computed(() => {
-        return ventasAgregadas.value.filter(venta => venta.cliente && venta.cliente.trim() !== '')
-    })
-
     const esVentaDeHoy = (fecha?: string) => {
         if (!fecha) return false
         const hoy = new Date().toDateString()
@@ -542,25 +508,33 @@
         return hoy === d.toDateString()
     }
 
+    // Ventas filtradas (solo con cliente identificado, permitiendo cualquier estado de pago)
+    const ventasReales = computed(() => {
+        return ventasAgregadas.value.filter(v => 
+            v.cliente && 
+            v.cliente !== 'Cliente desconocido'
+        )
+    })
+
+    const totalVentas = computed(() => {
+        return ventasReales.value.reduce((acc, venta) => acc + (venta.monto || 0), 0)
+    })
+
     const estadisticasVentas = computed(() => {
-        const ventasHoy = ventasAgregadas.value.filter(v => esVentaDeHoy(v.fecha))
-        const ventasAnteriores = ventasAgregadas.value.filter(v => !esVentaDeHoy(v.fecha))
-        const ventasHoyConCliente = ventasHoy.filter(v => v.cliente && v.cliente.trim() !== '')
-        const ventasAnterioresConCliente = ventasAnteriores.filter(v => v.cliente && v.cliente.trim() !== '')
+        const ventasHoy = ventasReales.value.filter(v => esVentaDeHoy(v.fecha))
+        const ventasAnteriores = ventasReales.value.filter(v => !esVentaDeHoy(v.fecha))
 
         return {
-            total: ventasAgregadas.value.length,
-            conCliente: ventasConCliente.value.length,
+            total: ventasReales.value.length,
+            conCliente: ventasReales.value.length, // Por definición todas tienen cliente ahora
             hoy: ventasHoy.length,
-            hoyConCliente: ventasHoyConCliente.length,
             anteriores: ventasAnteriores.length,
-            anterioresConCliente: ventasAnterioresConCliente.length
         }
     })
 
-    // Ventas filtradas por tipo seleccionado
+    // Ventas filtradas por tipo y búsqueda (sobre el conjunto de ventas reales)
     const ventasFiltradas = computed(() => {
-        let ventas = ventasAgregadas.value.filter(venta => venta.tipo === tipoSeleccionado.value)
+        let ventas = ventasReales.value.filter(venta => venta.tipo === tipoSeleccionado.value)
 
         if (busquedaVentas.value && busquedaVentas.value.trim() !== '') {
             const terminoBusqueda = busquedaVentas.value.toLowerCase()
@@ -717,7 +691,6 @@
                 monto: nuevaVenta.monto,
                 cliente_id: clienteId,
                 tipo: 'Venta Live',
-                modo_pago: nuevaVenta.modoPago || null,
             };
 
             if (ventaEditandoId.value) {
@@ -733,7 +706,6 @@
                         codigo: nuevaVenta.codigo,
                         monto: nuevaVenta.monto,
                         cliente: nuevaVenta.cliente,
-                        modoPago: nuevaVenta.modoPago,
                         guardada: true
                     };
                 }
@@ -753,23 +725,21 @@
                         monto: v.monto,
                         tipo: v.tipo,
                         fecha: v.fecha,
-                        modoPago: v.modo_pago,
                         cliente: v.clientes?.nombre || nuevaVenta.cliente || 'Cliente desconocido',
+                        estadoPago: v.estado_pago || 'pendiente',
                         guardada: true
                     });
 
-                    // Si el checkbox de retiro está marcado, crear retiro
-                    if (generarRetiro.value) {
-                        const retiroData = {
-                            venta_id: v.id,
-                            cliente_id: clienteId,
-                            monto: v.monto,
-                            estado: 'pendiente',
-                            fecha: new Date().toISOString()
-                        };
-                        const { error: retiroError } = await supabase.from('retiros').insert([retiroData]);
-                        if (retiroError) console.error('Error creando retiro:', retiroError);
-                    }
+                    // Generar retiro pendiente automáticamente
+                    const retiroData = {
+                        venta_id: v.id,
+                        cliente_id: clienteId,
+                        monto: v.monto,
+                        estado: 'pendiente',
+                        fecha: new Date().toISOString()
+                    };
+                    const { error: retiroError } = await supabase.from('retiros').insert([retiroData]);
+                    if (retiroError) console.error('Error creando retiro:', retiroError);
                 }
                 mensajeSnackbar.value = '✅ Venta registrada correctamente';
             }
@@ -778,7 +748,6 @@
             nuevaVenta.codigo = ''
             nuevaVenta.monto = null
             nuevaVenta.cliente = ''
-            nuevaVenta.modoPago = ''
         } catch (err) {
             console.error('Error guardando venta:', err);
             mensajeSnackbar.value = '❌ Error al guardar la venta';
@@ -793,7 +762,6 @@
         nuevaVenta.codigo = ventaAEditar.codigo
         nuevaVenta.monto = ventaAEditar.monto
         nuevaVenta.cliente = ventaAEditar.cliente
-        nuevaVenta.modoPago = ventaAEditar.modoPago || ''
         ventaEditandoId.value = ventaAEditar.id || null
     }
 
@@ -802,7 +770,6 @@
         nuevaVenta.codigo = ''
         nuevaVenta.monto = null
         nuevaVenta.cliente = ''
-        nuevaVenta.modoPago = ''
     }
 
     async function eliminarVentaFiltrada(ventaAEliminar: Venta) {
@@ -826,8 +793,9 @@
 
     function agruparVentas() {
         const grupos: Record<string, Venta[]> = {}
-        ventasAgregadas.value.forEach((c) => {
+        ventasReales.value.forEach((c) => {
             const cliente = c.cliente || 'Cliente desconocido'
+            if (cliente === 'Cliente desconocido') return
             if (!grupos[cliente]) grupos[cliente] = []
             grupos[cliente].push(c)
         })
@@ -835,8 +803,7 @@
         resumenVentas.value = Object.entries(grupos).map(([cliente, ventas]) => {
             const total = ventas.reduce((acc, c) => acc + (c.monto || 0), 0)
             const detalle = ventas.map(c => {
-                const modoPagoInfo = c.modoPago ? `, Pago: ${getModoPagoText(c.modoPago)}` : ''
-                return `- Código: ${c.codigo}, Monto: ${formatoMoneda(c.monto || 0)}${modoPagoInfo}`
+                return `- Código: ${c.codigo}, Monto: ${formatoMoneda(c.monto || 0)}`
             }).join('\n')
             const texto = `Estimado(a) ${cliente},
 
@@ -903,8 +870,8 @@ Equipo de Menaje House`
                     monto: v.monto,
                     tipo: v.tipo,
                     fecha: v.fecha,
-                    modoPago: v.modo_pago,
                     cliente: v.clientes?.nombre || v.cliente_id || 'Cliente desconocido',
+                    estadoPago: v.estado_pago,
                     guardada: true
                 };
 
@@ -929,13 +896,15 @@ Equipo de Menaje House`
     async function cargarVentasDelDia() {
         try {
             const hoy = new Date()
-            const inicioDelDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).toISOString();
+            const haceSieteDias = new Date(hoy)
+            haceSieteDias.setDate(hoy.getDate() - 7) // Cargar última semana por defecto
+            const inicioRango = haceSieteDias.toISOString();
 
             const { data, error } = await supabase
                 .from('ventas')
                 .select('*, clientes(nombre)')
                 .eq('tipo', 'Venta Live') // FORZAR TIPO LIVE
-                .gte('fecha', inicioDelDia)
+                .gte('fecha', inicioRango)
                 .order('fecha', { ascending: false });
 
             if (error) throw error;
@@ -949,8 +918,8 @@ Equipo de Menaje House`
                     monto: v.monto,
                     tipo: v.tipo,
                     fecha: v.fecha,
-                    modoPago: v.modo_pago,
                     cliente: v.clientes?.nombre || v.cliente_id || 'Cliente desconocido',
+                    estadoPago: v.estado_pago,
                     guardada: true
                 });
             })
@@ -959,36 +928,6 @@ Equipo de Menaje House`
             console.log(`✅ Cargadas ${ventasDelDia.length} ventas del día actual`)
         } catch (err) {
             console.error("Error cargando ventas del día:", err)
-        }
-    }
-
-
-
-    // Funciones para modo de pago
-    function getModoPagoColor(modoPago?: string) {
-        switch (modoPago) {
-            case 'transferencia': return 'blue'
-            case 'efectivo': return 'green'
-            case 'debito-credito': return 'purple'
-            default: return 'grey'
-        }
-    }
-
-    function getModoPagoIcon(modoPago?: string) {
-        switch (modoPago) {
-            case 'transferencia': return 'mdi-bank-transfer'
-            case 'efectivo': return 'mdi-cash'
-            case 'debito-credito': return 'mdi-credit-card'
-            default: return 'mdi-credit-card'
-        }
-    }
-
-    function getModoPagoText(modoPago?: string) {
-        switch (modoPago) {
-            case 'transferencia': return 'Transferencia'
-            case 'efectivo': return 'Efectivo'
-            case 'debito-credito': return 'Débito/Crédito'
-            default: return 'Sin pago'
         }
     }
 </script>

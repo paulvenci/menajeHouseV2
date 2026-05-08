@@ -98,11 +98,20 @@
         totalVentas: number;
         totalVentasLive: number;
         totalVentasDiarias: number;
+        totalLivePendientePago: number;
+        totalLivePendienteRetiro: number;
         cantidadVentas: number;
     }
 
     // Estado reactivo para almacenar los datos
-    const stats = ref<Stats>({ totalVentas: 0, totalVentasLive: 0, totalVentasDiarias: 0, cantidadVentas: 0 })
+    const stats = ref<Stats>({ 
+        totalVentas: 0, 
+        totalVentasLive: 0, 
+        totalVentasDiarias: 0, 
+        totalLivePendientePago: 0,
+        totalLivePendienteRetiro: 0,
+        cantidadVentas: 0 
+    })
     // const pendingWithdrawals = ref<Retiro[]>([])
     const pendingPayments = ref<Pago[]>([])
     const loading = ref(true)
@@ -120,35 +129,58 @@
 
     // Nos conectamos a Firestore al montar el componente
     onMounted(async () => {
-        // --- Estadísticas de Ventas ---
-        // TODO: Migrar lógica a Tiempo Real de Supabase (channels) o recargar al montar
         try {
-            console.log('📈 Iniciando carga de estadísticas...');
+            console.log('📈 Iniciando carga de datos...');
             
-            // Intentamos cargar todas las ventas para asegurar que tenemos datos para procesar
-            await ventasStore.cargarTodasLasVentas();
-            
+            // Cargar todos los datos necesarios
+            await Promise.all([
+                ventasStore.cargarTodasLasVentas(),
+                clientesStore.cargarClientes(),
+                retirosStore.cargarRetirosDelMes()
+            ]);
+
             const hoy = new Date();
             const mesActual = hoy.getMonth();
             const anioActual = hoy.getFullYear();
             
             let total = 0, totalLive = 0, totalDiaria = 0, cantidad = 0;
+            let totalLivePendPago = 0, totalLivePendRetiro = 0;
             
-            console.log(`🔍 Analizando ${ventasStore.ventas.length} ventas totales...`);
+            console.log(`🔍 Analizando ${ventasStore.ventas.length} ventas y ${retirosStore.retiros.length} retiros...`);
 
+            // Calcular estadísticas de ventas
             ventasStore.ventas.forEach(venta => {
                if (venta.fecha) {
-                    // Usamos una aproximación más robusta para el mes
-                    // Si la fecha es "2026-05-04 00:00:00+00", queremos que cuente como Mayo
                     const ventaDate = new Date(venta.fecha);
                     
                     // Comprobamos si es el mismo mes y año
                     if (ventaDate.getMonth() === mesActual && ventaDate.getFullYear() === anioActual) {
                         const monto = Number(venta.monto) || 0;
-                        total += monto;
-                        cantidad++;
-                        if (venta.tipo === 'Venta Live') totalLive += monto;
-                        else totalDiaria += monto;
+                        const esPagada = venta.estado_pago === 'pagado';
+                        const tieneCliente = venta.cliente_id !== null;
+
+                        // Solo contamos como "ventas reales" las pagadas con cliente
+                        if (esPagada && tieneCliente) {
+                            total += monto;
+                            cantidad++;
+                            if (venta.tipo === 'Venta Live') totalLive += monto;
+                            else totalDiaria += monto;
+                        }
+
+                        // Pendientes de pago (Solo Live y con cliente conocido)
+                        if (venta.tipo === 'Venta Live' && !esPagada && tieneCliente) {
+                            totalLivePendPago += monto;
+                        }
+                    }
+                }
+            });
+
+            // Calcular retiros pendientes (Solo Live - Cantidad)
+            retirosStore.retiros.forEach(retiro => {
+                const retiroDate = new Date(retiro.fecha);
+                if (retiroDate.getMonth() === mesActual && retiroDate.getFullYear() === anioActual) {
+                    if (retiro.tipoVenta === 'Venta Live' && retiro.estado === 'pendiente') {
+                        totalLivePendRetiro++;
                     }
                 }
             });
@@ -157,47 +189,20 @@
                 totalVentas: total, 
                 totalVentasLive: totalLive, 
                 totalVentasDiarias: totalDiaria, 
+                totalLivePendientePago: totalLivePendPago,
+                totalLivePendienteRetiro: totalLivePendRetiro,
                 cantidadVentas: cantidad 
             };
-            console.log('✅ Estadísticas calculadas para el mes:', stats.value);
+            
+            // Carga los datos de ventas mensuales para el gráfico
+            monthlySales.value = await ventasStore.cargarVentasMensuales();
+            
+            console.log('✅ Estadísticas calculadas:', stats.value);
         } catch(error) {
            console.error("❌ Error en Dashboard:", error)
-        }
-
-
-        // --- Pagos Pendientes ---
-        // const pagosQuery = query(collection(db, 'pagos'), where('estado', '==', 'pendiente'));
-        // unsubscribePagos = onSnapshot(pagosQuery, (snapshot) => pendingPayments.value = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Pago)));
-
-        // Carga los clientes y retiros al montar el componente
-        try {
-            await clientesStore.cargarClientes();
-            await retirosStore.cargarRetirosDelMes();
-            // Carga los datos de ventas mensuales al montar el componente
-            monthlySales.value = await ventasStore.cargarVentasMensuales();
-        } catch (error) {
-            console.error("Error al cargar datos:", error);
         } finally {
             loading.value = false;
         }
-
-        // Estas líneas ahora son redundantes y se reemplazan por la llamada al store
-        // const retirosQuery = query(collection(db, 'retiros'), where('estado', '==', 'pendiente'));
-        // unsubscribeRetiros = onSnapshot(retirosQuery, (snapshot) => {
-        //     pendingWithdrawals.value = snapshot.docs.map(doc => {
-        //         const data = doc.data() as Retiro;
-        //         const cliente = clientesStore.clientes.find(c => c.id === data.solicitadoPor);
-        //         return {
-        //             ...data,
-        //             id: doc.id,
-        //             // Usa el nombre del cliente del store
-        //             solicitadoPor: cliente ? cliente.nombre : 'Desconocido'
-        //         };
-        //     });
-        //     loading.value = false;
-        // });
-
-
     })
 
     function confirmarVaciarVentas() {
@@ -215,7 +220,14 @@
             
             // Recargar datos para actualizar la UI
             await ventasStore.cargarTodasLasVentas();
-            stats.value = { totalVentas: 0, totalVentasLive: 0, totalVentasDiarias: 0, cantidadVentas: 0 };
+            stats.value = { 
+                totalVentas: 0, 
+                totalVentasLive: 0, 
+                totalVentasDiarias: 0, 
+                totalLivePendientePago: 0,
+                totalLivePendienteRetiro: 0,
+                cantidadVentas: 0 
+            };
             monthlySales.value = {};
         } catch (error) {
             console.error('Error al vaciar ventas:', error);
