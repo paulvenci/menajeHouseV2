@@ -9,7 +9,7 @@
                 </v-card-text>
             </v-card>
         </v-container>
-        <PendingWithdrawals :withdrawals="retirosStore.retiros" :loading="loading" />
+        <PendingWithdrawals :withdrawals="retirosPendientes" :loading="loading" />
         <PendingPayments :payments="pendingPayments" :loading="loading" />
  
         <v-container fluid class="mt-8">
@@ -55,7 +55,7 @@
 
 <script setup
     lang="ts">
-    import { ref, onMounted, onUnmounted } from 'vue'
+    import { ref, onMounted, onUnmounted, computed } from 'vue'
     // Importaciones de Firebase eliminadas. Usaremos los Stores de Supabase.
     import StatsCards from '@/components/StatsCards.vue'
     import PendingWithdrawals from '@/components/PendingWithdrawals.vue'
@@ -69,6 +69,10 @@
     import { useVentasStore } from '../stores/ventasStores'; // Importa el store de ventas
     const ventasStore = useVentasStore(); // Usa el store de ventas
     const monthlySales = ref({}); // Variable para almacenar los datos del gráfico
+
+    const retirosPendientes = computed(() => {
+        return retirosStore.retiros.filter(r => r.estado === 'pendiente');
+    });
 
 
     // Interfaces
@@ -152,23 +156,18 @@
             ventasStore.ventas.forEach(venta => {
                if (venta.fecha) {
                     const ventaDate = new Date(venta.fecha);
-                    
-                    // Comprobamos si es el mismo mes y año
                     if (ventaDate.getMonth() === mesActual && ventaDate.getFullYear() === anioActual) {
                         const monto = Number(venta.monto) || 0;
                         const esPagada = venta.estado_pago === 'pagado';
-                        const tieneCliente = venta.cliente_id !== null;
 
-                        // Solo contamos como "ventas reales" las pagadas con cliente
-                        if (esPagada && tieneCliente) {
-                            total += monto;
-                            cantidad++;
-                            if (venta.tipo === 'Venta Live') totalLive += monto;
-                            else totalDiaria += monto;
-                        }
+                        // Contabilizamos todas las ventas del mes en los totales generales
+                        total += monto;
+                        cantidad++;
+                        if (venta.tipo === 'Venta Live') totalLive += monto;
+                        else totalDiaria += monto;
 
-                        // Pendientes de pago (Solo Live y con cliente conocido)
-                        if (venta.tipo === 'Venta Live' && !esPagada && tieneCliente) {
+                        // Pendientes de pago (Solo Live)
+                        if (venta.tipo === 'Venta Live' && !esPagada) {
                             totalLivePendPago += monto;
                         }
                     }

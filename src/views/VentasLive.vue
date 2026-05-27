@@ -295,7 +295,7 @@
                                     <template #append>
                                         <div class="d-flex align-center">
                                             <v-btn icon size="small" variant="tonal" color="primary"
-                                                @click="imprimir(index)" class="mr-6">
+                                                @click="imprimir(venta)" class="mr-6">
                                                 <v-icon size="small">mdi-printer</v-icon>
                                             </v-btn>
                                             <v-btn icon size="small" variant="tonal" color="primary"
@@ -508,12 +508,9 @@
         return hoy === d.toDateString()
     }
 
-    // Ventas filtradas (solo con cliente identificado, permitiendo cualquier estado de pago)
+    // Ventas (todas las ventas agregadas)
     const ventasReales = computed(() => {
-        return ventasAgregadas.value.filter(v => 
-            v.cliente && 
-            v.cliente !== 'Cliente desconocido'
-        )
+        return ventasAgregadas.value
     })
 
     const totalVentas = computed(() => {
@@ -526,7 +523,7 @@
 
         return {
             total: ventasReales.value.length,
-            conCliente: ventasReales.value.length, // Por definición todas tienen cliente ahora
+            conCliente: ventasReales.value.filter(v => v.cliente && v.cliente !== 'Cliente desconocido').length,
             hoy: ventasHoy.length,
             anteriores: ventasAnteriores.length,
         }
@@ -622,8 +619,8 @@
         }
     }
     // Nueva función para imprimir un item de la venta
-    function imprimir(index: any) {
-        const venta = ventasAgregadas.value[index]
+    function imprimir(venta: Venta) {
+        if (!venta) return
         // Crea el contenido HTML para la ventana de impresión
         const contenidoImprimir = `
         <html>
@@ -719,7 +716,7 @@
 
                 if (data && data.length > 0) {
                     const v = data[0];
-                    ventasAgregadas.value.unshift({
+                    const ventaAgregada = {
                         id: v.id,
                         codigo: v.codigo,
                         monto: v.monto,
@@ -728,7 +725,15 @@
                         cliente: v.clientes?.nombre || nuevaVenta.cliente || 'Cliente desconocido',
                         estadoPago: v.estado_pago || 'pendiente',
                         guardada: true
-                    });
+                    };
+                    ventasAgregadas.value.unshift(ventaAgregada);
+
+                    // Impresión automática si tiene cliente
+                    if (ventaAgregada.cliente && ventaAgregada.cliente !== 'Cliente desconocido') {
+                        setTimeout(() => {
+                            imprimir(ventaAgregada);
+                        }, 500);
+                    }
 
                     // Generar retiro pendiente automáticamente
                     const retiroData = {
@@ -896,9 +901,8 @@ Equipo de Menaje House`
     async function cargarVentasDelDia() {
         try {
             const hoy = new Date()
-            const haceSieteDias = new Date(hoy)
-            haceSieteDias.setDate(hoy.getDate() - 7) // Cargar última semana por defecto
-            const inicioRango = haceSieteDias.toISOString();
+            const inicioDelDia = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate()).toISOString();
+            const inicioRango = inicioDelDia;
 
             const { data, error } = await supabase
                 .from('ventas')
@@ -925,7 +929,7 @@ Equipo de Menaje House`
             })
 
             ventasAgregadas.value = ventasDelDia
-            console.log(`✅ Cargadas ${ventasDelDia.length} ventas del día actual`)
+            console.log(`✅ Cargadas ${ventasDelDia.length} ventas de hoy`)
         } catch (err) {
             console.error("Error cargando ventas del día:", err)
         }
